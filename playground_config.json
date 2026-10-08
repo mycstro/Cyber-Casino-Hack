@@ -1,0 +1,86 @@
+{
+  "schema": [
+    {
+      "name": "gridRows",
+      "type": "number",
+      "label": "Grid Rows",
+      "default": 8,
+      "min": 6,
+      "max": 10,
+      "step": 1
+    },
+    {
+      "name": "gridCols",
+      "type": "number",
+      "label": "Grid Columns",
+      "default": 8,
+      "min": 6,
+      "max": 10,
+      "step": 1
+    },
+    {
+      "name": "startingMoves",
+      "type": "number",
+      "label": "Starting Moves (D1)",
+      "default": 22,
+      "min": 10,
+      "max": 40,
+      "step": 1
+    },
+    {
+      "name": "targetScoreD1",
+      "type": "number",
+      "label": "Target Score D1",
+      "default": 2500,
+      "min": 1000,
+      "max": 5000,
+      "step": 250
+    },
+    {
+      "name": "targetScoreD2",
+      "type": "number",
+      "label": "Target Score D2",
+      "default": 6000,
+      "min": 3000,
+      "max": 10000,
+      "step": 500
+    },
+    {
+      "name": "scoreMultiplierStep",
+      "type": "number",
+      "label": "Combo Multiplier Step",
+      "default": 1.5,
+      "min": 1.1,
+      "max": 3.0,
+      "step": 0.1
+    },
+    {
+      "name": "ambientIntensity",
+      "type": "number",
+      "label": "Ambient Intensity",
+      "default": 1.6,
+      "min": 0.5,
+      "max": 4.0,
+      "step": 0.1
+    },
+    {
+      "name": "defaultMusicVolume",
+      "type": "number",
+      "label": "Default Music Volume",
+      "default": 0.45,
+      "min": 0,
+      "max": 1,
+      "step": 0.05
+    }
+  ],
+  "values": {
+    "gridRows": 8,
+    "gridCols": 8,
+    "startingMoves": 22,
+    "targetScoreD1": 2500,
+    "targetScoreD2": 6000,
+    "scoreMultiplierStep": 1.5,
+    "ambientIntensity": 1.6,
+    "defaultMusicVolume": 0.45
+  }
+}

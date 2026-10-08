@@ -1,0 +1,127 @@
+{
+  "rulesVersion": 3,
+  "seedCount": 2400,
+  "policy": "Greedy objective-aware legal moves; earned Cross Lasers and +5 match moves; one EMP if incomplete at five moves remaining. Bot results are not human completion rates.",
+  "levels": [
+    {
+      "level": 1,
+      "seeds": 200,
+      "completionRate": 1,
+      "unassistedWins": 200,
+      "assistedWins": 0,
+      "meanMovesRemainingOnWin": 22.64,
+      "meanScore": 6588,
+      "boosterUseRate": 0
+    },
+    {
+      "level": 2,
+      "seeds": 200,
+      "completionRate": 1,
+      "unassistedWins": 200,
+      "assistedWins": 0,
+      "meanMovesRemainingOnWin": 22.89,
+      "meanScore": 20183,
+      "boosterUseRate": 0
+    },
+    {
+      "level": 3,
+      "seeds": 200,
+      "completionRate": 0.995,
+      "unassistedWins": 199,
+      "assistedWins": 0,
+      "meanMovesRemainingOnWin": 22.96,
+      "meanScore": 11314,
+      "boosterUseRate": 0.01
+    },
+    {
+      "level": 4,
+      "seeds": 200,
+      "completionRate": 1,
+      "unassistedWins": 200,
+      "assistedWins": 0,
+      "meanMovesRemainingOnWin": 26.07,
+      "meanScore": 26401,
+      "boosterUseRate": 0
+    },
+    {
+      "level": 5,
+      "seeds": 200,
+      "completionRate": 1,
+      "unassistedWins": 199,
+      "assistedWins": 1,
+      "meanMovesRemainingOnWin": 23.79,
+      "meanScore": 21244,
+      "boosterUseRate": 0.005
+    },
+    {
+      "level": 6,
+      "seeds": 200,
+      "completionRate": 1,
+      "unassistedWins": 200,
+      "assistedWins": 0,
+      "meanMovesRemainingOnWin": 22.66,
+      "meanScore": 7627,
+      "boosterUseRate": 0
+    },
+    {
+      "level": 10,
+      "seeds": 200,
+      "completionRate": 1,
+      "unassistedWins": 200,
+      "assistedWins": 0,
+      "meanMovesRemainingOnWin": 27.91,
+      "meanScore": 22782,
+      "boosterUseRate": 0
+    },
+    {
+      "level": 22,
+      "seeds": 200,
+      "completionRate": 1,
+      "unassistedWins": 200,
+      "assistedWins": 0,
+      "meanMovesRemainingOnWin": 24.86,
+      "meanScore": 23455,
+      "boosterUseRate": 0
+    },
+    {
+      "level": 33,
+      "seeds": 200,
+      "completionRate": 1,
+      "unassistedWins": 200,
+      "assistedWins": 0,
+      "meanMovesRemainingOnWin": 26.01,
+      "meanScore": 12513,
+      "boosterUseRate": 0
+    },
+    {
+      "level": 44,
+      "seeds": 200,
+      "completionRate": 1,
+      "unassistedWins": 200,
+      "assistedWins": 0,
+      "meanMovesRemainingOnWin": 29.14,
+      "meanScore": 32161,
+      "boosterUseRate": 0
+    },
+    {
+      "level": 55,
+      "seeds": 200,
+      "completionRate": 1,
+      "unassistedWins": 200,
+      "assistedWins": 0,
+      "meanMovesRemainingOnWin": 26.94,
+      "meanScore": 34384,
+      "boosterUseRate": 0
+    },
+    {
+      "level": 60,
+      "seeds": 200,
+      "completionRate": 1,
+      "unassistedWins": 200,
+      "assistedWins": 0,
+      "meanMovesRemainingOnWin": 31.5,
+      "meanScore": 36163,
+      "boosterUseRate": 0
+    }
+  ]
+}

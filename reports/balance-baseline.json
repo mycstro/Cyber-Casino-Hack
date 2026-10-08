@@ -1,0 +1,107 @@
+{
+  "rulesVersion": 1,
+  "seedCount": 2000,
+  "policy": "Greedy objective-aware legal moves; one EMP if incomplete at five moves remaining. Bot results are not human completion rates.",
+  "levels": [
+    {
+      "level": 1,
+      "seeds": 200,
+      "completionRate": 1,
+      "unassistedWins": 200,
+      "assistedWins": 0,
+      "meanMovesRemainingOnWin": 18.64,
+      "meanScore": 5141,
+      "boosterUseRate": 0
+    },
+    {
+      "level": 2,
+      "seeds": 200,
+      "completionRate": 0.995,
+      "unassistedWins": 183,
+      "assistedWins": 16,
+      "meanMovesRemainingOnWin": 9.64,
+      "meanScore": 17027,
+      "boosterUseRate": 0.085
+    },
+    {
+      "level": 3,
+      "seeds": 200,
+      "completionRate": 0.995,
+      "unassistedWins": 199,
+      "assistedWins": 0,
+      "meanMovesRemainingOnWin": 19.87,
+      "meanScore": 3412,
+      "boosterUseRate": 0.005
+    },
+    {
+      "level": 4,
+      "seeds": 200,
+      "completionRate": 0.67,
+      "unassistedWins": 69,
+      "assistedWins": 65,
+      "meanMovesRemainingOnWin": 7.97,
+      "meanScore": 22535,
+      "boosterUseRate": 0.655
+    },
+    {
+      "level": 5,
+      "seeds": 200,
+      "completionRate": 1,
+      "unassistedWins": 194,
+      "assistedWins": 6,
+      "meanMovesRemainingOnWin": 13.06,
+      "meanScore": 12133,
+      "boosterUseRate": 0.03
+    },
+    {
+      "level": 10,
+      "seeds": 200,
+      "completionRate": 1,
+      "unassistedWins": 200,
+      "assistedWins": 0,
+      "meanMovesRemainingOnWin": 17.71,
+      "meanScore": 13836,
+      "boosterUseRate": 0
+    },
+    {
+      "level": 20,
+      "seeds": 200,
+      "completionRate": 1,
+      "unassistedWins": 198,
+      "assistedWins": 2,
+      "meanMovesRemainingOnWin": 17.43,
+      "meanScore": 15695,
+      "boosterUseRate": 0.01
+    },
+    {
+      "level": 30,
+      "seeds": 200,
+      "completionRate": 1,
+      "unassistedWins": 198,
+      "assistedWins": 2,
+      "meanMovesRemainingOnWin": 16.67,
+      "meanScore": 18934,
+      "boosterUseRate": 0.01
+    },
+    {
+      "level": 40,
+      "seeds": 200,
+      "completionRate": 1,
+      "unassistedWins": 198,
+      "assistedWins": 2,
+      "meanMovesRemainingOnWin": 15.72,
+      "meanScore": 21092,
+      "boosterUseRate": 0.01
+    },
+    {
+      "level": 60,
+      "seeds": 200,
+      "completionRate": 1,
+      "unassistedWins": 197,
+      "assistedWins": 3,
+      "meanMovesRemainingOnWin": 15.07,
+      "meanScore": 24388,
+      "boosterUseRate": 0.015
+    }
+  ]
+}

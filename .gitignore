@@ -1,0 +1,13 @@
+node_modules/
+dist/
+test-results/
+playwright-report/
+coverage/
+.env
+.env.*
+!.env.example
+*.log
+project-files.zip
+.DS_Store
+Thumbs.db
+reports/annotated-user-reference.png

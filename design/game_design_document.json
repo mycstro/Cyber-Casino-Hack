@@ -1,0 +1,100 @@
+{
+  "title": "Cyber Casino Hack",
+  "hook": "Hack endless neon matrix grids",
+  "game_overview": "Infiltrate endless high-tech casino security tiers with diverse procedural obstacles and escalating difficulty every 50 levels.",
+  "artstyle": "cyberpunk-neon",
+  "genre": "puzzle",
+  "winning_condition": "Reach the target breach score within move limits across increasingly secure casino network districts.",
+  "losing_condition": "Run out of moves before reaching the required security breach score, losing network connection.",
+  "player_mode": "single_player",
+  "supported_orientations": [
+    "portrait",
+    "landscape"
+  ],
+  "input_methods": [
+    "touch",
+    "mouse"
+  ],
+  "score_options": {
+    "score_type": "points",
+    "score_order": "higher_is_better"
+  },
+  "low_end_device_support": false,
+  "mobile_playable": true,
+  "language": [
+    "en"
+  ],
+  "content_descriptors": [],
+  "controls": [
+    {
+      "input": "Mouse Click & Drag / Touch Swipe",
+      "action": "Select and swap adjacent holographic chips, data prisms, and circuit cards to create matches."
+    },
+    {
+      "input": "Click / Tap Activated Overload",
+      "action": "Detonate System Overload blast cubes to clear entire color channels across the matrix grid."
+    }
+  ],
+  "sections": [
+    {
+      "title": "Design Pillars",
+      "content": "1. Tactile Holographic Cyberpunk: Satisfying 3D glass, glowing neon emissive shaders, and electronic soundscapes. 2. Chain-Reaction Chaos: System Overloads, Line Bursts, and Data Nova detonations that feel impactful. 3. District Progression: Clear mission objectives, district firewall themes, and escalating puzzle mechanics.",
+      "summary": "Key philosophical pillars driving the gameplay experience."
+    },
+    {
+      "title": "Core Loop",
+      "content": "The player examines an 8x8 holographic puzzle grid rendered on a futuristic cyber terminal. Swapping adjacent symbols creates matches of 3 or more, converting casino data tokens into Hack Score. Matching 4 creates a Line Purge EMP, matching 5 creates a System Overload cube. Reaching the district score threshold breaches the firewall, unlocking subsequent casino districts with unique mechanics.",
+      "summary": "The moment-to-moment gameplay cycle."
+    },
+    {
+      "title": "Core Mechanics",
+      "content": "1. 3D Holographic Grid: 8x8 board of interactive floating 3D nodes (Neon Poker Chips, Data Octahedrons, Cyber Gold Coins, Quantum Dice, and Neural Cards). 2. Power-Up Fusion: 4-match creates Line Laser Disrupters; T/L-shapes create Cluster Bombs; 5-match creates System Overload Cores. 3. System Overload: Swapping an Overload Core with any color purges all tokens of that color with high-voltage lightning arcs. 4. Cascades & Multipliers: Falling tokens create chain reactions multiplying hack scores.",
+      "summary": "Interactive matching, powerup synthesis, and district modifiers."
+    },
+    {
+      "title": "3D Camera & Movement Alignment",
+      "content": "3D Coordinate System: Standard Three.js (+Y up, +X right, -Z forward). Camera Perspective: Elevated perspective camera (FOV 45, tilted slightly at [0, 0, 14]) framing the glowing 3D terminal grid with cybernetic volumetric depth and subtle gyro drift on mouse/touch interaction. Asset Alignment: All 3D tiles float with kinematic bobbing and spin animations.",
+      "summary": "Orthographic/Perspective 3D camera focused on the holographic matrix."
+    },
+    {
+      "title": "3D Scene & Environment Structure",
+      "content": "3D Scene Separation: High-contrast cyberpunk casino vault backdrop with digital wireframe skyscrapers, server racks, holographic ticker displays, and laser security beams. Emissive materials on chips (cyan, magenta, amber, emerald, electric violet) ensure unmistakable visual affordance. Physically correct lighting with dynamic point lights reacting to combo blasts.",
+      "summary": "High-tech underground casino server room with dynamic neon lighting."
+    },
+    {
+      "title": "Characters & Enemies",
+      "content": "Security AI Daemons act as district bosses displaying real-time security integrity meters, counter-hack glitch attacks, and reactive firewall locks that require adjacent matches to unlock.",
+      "summary": "Digital AI security daemons and firewall protocols."
+    },
+    {
+      "title": "Fairness Tools",
+      "content": "Idle hint highlighting subtle pulse animations after 5 seconds of inactivity. Automatic board reshuffle with dynamic particle burst if no valid moves exist.",
+      "summary": "Player assist systems."
+    },
+    {
+      "title": "Juice & Game Feel",
+      "content": "Anticipation Juice: Selected tile pulses with an electric aura; valid swap targets glow. State Change Juice: Cascading tiles drop with elastic spring physics. Impact Juice: 3D camera recoil and screen glitch flash on 4+ matches; explosive particle sparks and thunderous synthesized SFX on System Overload.",
+      "summary": "Tactile sensory feedback for matching and power-ups."
+    },
+    {
+      "title": "Social Mechanics & Audience",
+      "content": "Global leaderboard integration via Playground SDK tracking total hack score, districts breached, and max combo chains.",
+      "summary": "Competitive score chasing and district completion leaderboard."
+    },
+    {
+      "title": "Accessibility",
+      "content": "High contrast color palette with distinct geometric shape silhouettes on every token type (Circle chip, Diamond crystal, Star token, Hexagon card, Cube die) ensuring full colorblind accessibility.",
+      "summary": "Visual and cognitive accessibility options."
+    },
+    {
+      "title": "Structural Integrity",
+      "content": "Main Terminal Menu -> District Selection -> Active Matrix Puzzle -> District Breached / Connection Lost Overlay -> High Score Summary. Tailwind HUD safe-zones preserving unobstructed 3D grid visibility.",
+      "summary": "Game state flow and UI integration."
+    },
+    {
+      "title": "Virtual Touch Controls Implementation",
+      "content": "Full mobile touch-drag raycasting and tap-to-swap selection with touch-none CSS, preventing unwanted scrolling while delivering instant touch responsiveness.",
+      "summary": "Seamless mobile drag and tap support."
+    }
+  ]
+}
