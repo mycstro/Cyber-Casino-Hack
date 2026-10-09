@@ -2,8 +2,8 @@ import React,{useEffect,useRef,useState} from 'react';
 import {SLOT_PRIZES,slotPrize,type BonusRound as Round} from '../game/bonus';
 import {gameAudio} from '../utils/helper';
 
-export function BonusRound({round,reducedMotion,onSpin,onContinue}:{round:Round;reducedMotion:boolean;onSpin:()=>boolean;onContinue:()=>boolean}) {
-  const [phase,setPhase]=useState<'ready'|'spinning'|'won'>(round.claimed?'won':'ready');
+export function BonusRound({round,reducedMotion,onSpin,onContinue}:{round:Round;reducedMotion:boolean;onSpin:()=>boolean|Promise<boolean>;onContinue:()=>boolean}) {
+  const [phase,setPhase]=useState<'ready'|'paying'|'spinning'|'won'>(round.claimed?'won':'ready');
   const [tick,setTick]=useState(0),started=useRef(0);
   const [error,setError]=useState('');
   const host=useRef<HTMLElement>(null);
@@ -25,7 +25,7 @@ export function BonusRound({round,reducedMotion,onSpin,onContinue}:{round:Round;
     })}</div>
     <div className="slot-result" role="status" aria-live="polite">{phase==='won'?<><strong>THREE MATCHED · +{prize.amount} {prize.name}</strong><span>Power {prize.power}/5 · added to your booster inventory</span></>:phase==='spinning'?<strong>MATCHING YOUR REELS…</strong>:<><strong>YOUR FREE SPIN IS READY</strong><span>Higher power means a smaller quantity.</span></>}</div>
     {error&&<p role="alert" className="text-amber-300">{error}</p>}
-    {phase==='won'?<button className="cyber-button primary" autoFocus onClick={()=>{if(!onContinue())setError('Cannot save completion. Free browser storage, then retry. Your saved reward will not be paid twice.');}}>CONTINUE TO LEVEL {round.level+1}</button>:<button className="cyber-button primary" autoFocus disabled={phase==='spinning'} onClick={()=>{if(phase!=='ready')return;if(!onSpin()){setError('Cannot save this spin. Free browser storage, then retry.');return;}setError('');started.current=performance.now();setPhase('spinning');gameAudio.playConfirmSelect();}}> {phase==='spinning'?'SPINNING…':'SPIN FREE BONUS'}</button>}
+    {phase==='won'?<button className="cyber-button primary" autoFocus onClick={()=>{if(!onContinue())setError('Cannot save completion. Free browser storage, then retry. Your saved reward will not be paid twice.');}}>CONTINUE TO LEVEL {round.level+1}</button>:<button className="cyber-button primary" autoFocus disabled={phase==='spinning'||phase==='paying'} onClick={async()=>{if(phase!=='ready')return;setPhase('paying');try{if(!await onSpin()){setPhase('ready');setError('Cannot save this spin. Check your connection or browser storage, then retry.');return;}}catch{setPhase('ready');setError('Cannot save this spin. Check your connection, then retry.');return;}setError('');started.current=performance.now();setPhase('spinning');gameAudio.playConfirmSelect();}}> {phase==='spinning'?'SPINNING…':phase==='paying'?'SAVING SPIN…':'SPIN FREE BONUS'}</button>}
     <div className="slot-paytable"><h3>WINNING MATCHES</h3>{SLOT_PRIZES.map(p=><div key={p.booster}><span style={{color:p.color}} aria-hidden="true">{p.icon}</span><span>{p.name}<small>Power {p.power}/5</small></span><strong>×{p.amount}</strong></div>)}</div>
   </section></div>;
 }

@@ -29,6 +29,15 @@ describe('application lifecycle integration', () => {
   });
   afterEach(cleanup);
   const start = async () => {render(<App />); await act(async()=>{fireEvent.click(screen.getByRole('button', {name:/INITIALIZE HACK/i}));});await screen.findByTestId('game');};
+  it('keeps the complete course and saved performance inside Hacker Training',async()=>{
+    render(<App/>);expect(screen.queryByRole('button',{name:'TRAINING COURSE & PERFORMANCE'})).toBeNull();fireEvent.click(screen.getByRole('button',{name:'HACKER TRAINING'}));expect(screen.getByRole('heading',{name:'Learn every part of the heist.'})).toBeTruthy();
+    await act(async()=>fireEvent.click(screen.getByRole('button',{name:'START GUIDED TRAINING'})));await screen.findByTestId('game');const inventory=localStorage.getItem('cyber_casino_boosters_v5');
+    for(let n=1;n<=22;n++){
+      expect(state.props.tutorial).toBe(n);if(n===1)act(()=>{state.props.onTrainingMistake();state.props.onTrainingMistake();});act(()=>state.props.onProgress(new HeistEngine(1,100+n,8,8,undefined,n).snapshot()));act(()=>state.props.onDistrictWin());
+      expect(JSON.parse(localStorage.getItem('cyber_casino_training_v2')!).completedLessons).toBe(n);await act(async()=>fireEvent.click(screen.getByRole('button',{name:n===22?'TRAINING COMPLETE':`NEXT LESSON ${n+1}`})));
+    }
+    expect(screen.getByRole('heading',{name:'Learn every part of the heist.'})).toBeTruthy();expect(screen.getByText('22/22 lessons completed · 22 attempts')).toBeTruthy();expect(localStorage.getItem('cyber_casino_boosters_v5')).toBe(inventory);expect(JSON.parse(localStorage.getItem('cyber_casino_career_v1')!).achievements).toContain('Hacker Academy');
+  });
   it('pauses the game for the menu and resumes it', async () => {
     await start();
     fireEvent.click(screen.getByRole('button', {name:'Game Menu'}));

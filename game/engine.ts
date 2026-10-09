@@ -1,6 +1,7 @@
 import type {BoosterType, GridTile} from '../types';
 import {findBoardMatches, hasBoardMove, recoverBoard,crossLines} from './board.ts';
 import {getDistrictForLevel, getMission, type Mission} from './campaign.ts';
+import {lesson,TRAINING_LESSON_COUNT,trainingAction} from './training.ts';
 
 export interface Progress {tokens:number; hazards:number; packets:number; vault:number; swaps:number; specials:number; boosters:number}
 export interface Snapshot {version:1; seed:number; rng:number; serial:number; turn:number; progress:Progress; tiles:GridTile[]; score:number; mission:Mission; tutorial:number; legacyScore?:boolean}
@@ -56,13 +57,24 @@ export class HeistEngine {
       paint(0,0,0);paint(0,1,1);paint(0,2,0);paint(1,1,0);
       if(this.state.tutorial===2){paint(1,0,1);paint(1,2,1);}
       if(this.state.tutorial===3){const t=board.find(t=>t.row===1&&t.col===0)!;t.locked=true;t.lockHealth=1;t.obstacleType='ice';}
+      if([5,6].includes(this.state.tutorial)){
+        paint(0,3,0);paint(1,3,2);if(this.state.tutorial===6){paint(0,1,0);paint(0,2,1);paint(1,2,0);paint(0,4,0);paint(0,5,2);}
+      }
+      if(this.state.tutorial>=7){
+        for(const t of board)t.type=(t.row+t.col)%5;
+        if(this.state.tutorial===8){paint(3,3,0);paint(3,5,0);paint(3,6,0);paint(3,7,2);paint(3,4,1);paint(2,3,1);paint(4,3,1);paint(2,4,0);paint(4,4,0);}
+        if(this.state.tutorial===7)board.find(t=>t.row===3&&t.col===3)!.special='lineCross';
+        if(this.state.tutorial===10){board.find(t=>t.row===3&&t.col===3)!.special='overload';board.find(t=>t.row===1&&t.col===6)!.special='lineCross';board.find(t=>t.row===6&&t.col===1)!.special='bomb';}
+        if(this.state.tutorial===11){for(const [index,kind] of ['ice','lock','corrupted','void','plasma_shield'].entries()){const t=board.find(t=>t.row===index+1&&t.col===index+1)!;t.locked=true;t.lockHealth=2;t.obstacleType=kind as GridTile['obstacleType'];t.bossLock=kind==='lock';t.vault=kind==='plasma_shield';}}
+      }
       this.state.tiles=board;
-      this.state.mission={kind:this.state.tutorial===3?'hazards':'score',target:this.state.tutorial===3?1:300,color:0,boss:false,label:['','Lesson 1: swap row 2, column 2 with row 1, column 2','Lesson 2: clear two lines to create a Cross Laser','Lesson 3: match beside ICE to break its shield'][this.state.tutorial]};
+      const n=this.state.tutorial;
+      this.state.mission={kind:[3,11].includes(n)?'hazards':'score',target:n===3?1:n===11?5:n===5?400:n===6?500:300,color:0,boss:false,label:`Lesson ${n}: ${lesson(n).title}`};
     }
   }
   at(pos:[number,number]) {return this.state.tiles.find(t=>t.row===pos[0]&&t.col===pos[1]);}
   progressValue() {const {mission:m,progress:p,score}=this.state;return m.kind==='score'?score:p[m.kind];}
-  complete() {if(this.state.tutorial===2)return this.state.progress.specials>0;return this.progressValue()>=this.state.mission.target;}
+  complete() {if(this.state.tutorial&&lesson(this.state.tutorial).kind==='overview')return false;if(this.state.tutorial===2)return this.state.progress.specials>0;if(this.state.tutorial===12)return this.state.progress.boosters>0;return this.progressValue()>=this.state.mission.target;}
   snapshot() {const s=structuredClone(this.state);for(const t of s.tiles){t.x=t.targetX;t.y=t.targetY;}return s;}
   normalize(board:GridTile[]) {for(const t of board){t.targetX=(t.col-(this.cols-1)/2)*1.15;t.targetY=((this.rows-1)/2-t.row)*1.15;t.scale=1;t.matched=false;}}
   gravity(board:GridTile[]):GridTile[] {
@@ -148,6 +160,7 @@ export class HeistEngine {
     return frame;
   }
   action(action:Action):{accepted:boolean; spendsMove:boolean; frames:Frame[];bonusMoves?:number} {
+    if(this.state.tutorial&&!trainingAction(this.state.tutorial,action))return {accepted:false,spendsMove:false,frames:[]};
     for(const t of this.state.tiles){t.x=t.targetX;t.y=t.targetY;}
     const frames:Frame[]=[];let targets:GridTile[]=[];let spendsMove=action.kind!=='booster';
     const a=action.kind==='swap'?this.at(action.from):action.at?this.at(action.at):undefined;
@@ -171,7 +184,10 @@ export class HeistEngine {
       if(!a||a.locked||a.packet||a.special==='none')return {accepted:false,spendsMove:false,frames};
       this.state.turn++;targets=this.area(a);
     } else {
-      if(action.booster==='overclock_moves')return {accepted:false,spendsMove:false,frames};
+      if(action.booster==='overclock_moves'){
+        if(this.state.tutorial!==12)return {accepted:false,spendsMove:false,frames};
+        this.state.progress.boosters++;return {accepted:true,spendsMove:false,bonusMoves:5,frames:[{tiles:structuredClone(this.state.tiles),cleared:[],points:0,combo:0,effect:'inject',message:'+5 MOVES · PRACTICE INJECTION'}]};
+      }
       if(action.booster==='glitch_wipe'){targets=this.state.tiles.filter(t=>t.locked);if(!targets.length)return {accepted:false,spendsMove:false,frames};}
       else if(!a)return {accepted:false,spendsMove:false,frames};
       else if(action.booster==='overload_core'){if(a.locked||a.packet||a.vault)return {accepted:false,spendsMove:false,frames};a.special='overload';this.state.progress.boosters++;frames.push({tiles:structuredClone(this.state.tiles),cleared:[],points:0,combo:0,effect:'inject',created:[structuredClone(a)]});return {accepted:true,spendsMove:false,frames};}
@@ -223,7 +239,7 @@ export class HeistEngine {
 
 export function validSnapshot(x:unknown,tiles:GridTile[]):x is Snapshot {
   const s=x as Snapshot;
-  return !!s&&s.version===1&&(s.legacyScore===undefined||typeof s.legacyScore==='boolean')&&[s.seed,s.rng,s.serial,s.turn,s.tutorial].every(v=>Number.isSafeInteger(v)&&v>=0)&&s.seed<=0xffffffff&&s.rng<=0xffffffff&&s.tutorial<=3&&Number.isFinite(s.score)&&s.score>=0&&!!s.progress&&
+  return !!s&&s.version===1&&(s.legacyScore===undefined||typeof s.legacyScore==='boolean')&&[s.seed,s.rng,s.serial,s.turn,s.tutorial].every(v=>Number.isSafeInteger(v)&&v>=0)&&s.seed<=0xffffffff&&s.rng<=0xffffffff&&s.tutorial<=TRAINING_LESSON_COUNT&&Number.isFinite(s.score)&&s.score>=0&&!!s.progress&&
     Object.keys(emptyProgress()).every(k=>Number.isSafeInteger(s.progress[k as keyof Progress])&&s.progress[k as keyof Progress]>=0)&&
     !!s.mission&&['score','tokens','hazards','packets','vault'].includes(s.mission.kind)&&Number.isFinite(s.mission.target)&&s.mission.target>0&&s.mission.color>=0&&s.mission.color<=4&&Array.isArray(s.tiles)&&s.tiles.length===tiles.length&&s.tiles.every((t,i)=>t.id===tiles[i].id&&t.row===tiles[i].row&&t.col===tiles[i].col);
 }

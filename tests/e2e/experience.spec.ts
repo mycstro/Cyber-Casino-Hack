@@ -57,6 +57,7 @@ test('a first breach wins a piece set, equips it and persists it across reloads'
 test('all collectible sets work with native touch training and the GPU-free board',async({page})=>{
   await page.addInitScript(()=>{const get=HTMLCanvasElement.prototype.getContext;HTMLCanvasElement.prototype.getContext=function(this:HTMLCanvasElement,type:any,...args:any[]){return type==='webgl2'?null:(get as any).call(this,type,...args);} as any;});
   await page.goto('/');await page.getByRole('button',{name:'HACKER TRAINING',exact:true}).click();
+  await page.getByRole('button',{name:'START GUIDED TRAINING'}).click();
   const guide=page.getByTestId('training-guide'),board=page.getByTestId('game-board');await expect(guide).toContainText('1 · Select');
   const from=page.getByRole('button',{name:'Row 2 column 2: Diamond',exact:true}),to=page.getByRole('button',{name:'Row 1 column 2: Chip',exact:true});
   if(test.info().project.use.hasTouch)await from.tap();else await from.click();await expect(guide).toContainText('2 · Now select');

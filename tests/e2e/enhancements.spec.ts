@@ -22,8 +22,9 @@ test('campaign map shows objectives, locked nodes and cosmetic requirements',asy
   await page.screenshot({path:`test-results/hub-${test.info().project.name}.png`});
   expect(errors).toEqual([]);
 });
-test('all three interactive lessons complete using the keyboard demonstration',async({page})=>{
+test('opening interactive lessons complete and continue beyond lesson three',async({page})=>{
   await page.getByRole('button',{name:'HACKER TRAINING',exact:true}).click();
+  await page.getByRole('button',{name:'START GUIDED TRAINING'}).click();
   for(let lesson=1;lesson<=3;lesson++) {
     const board=page.getByTestId('game-board');await expect(board).toBeVisible();
     await expect(page.getByTestId('training-guide')).toContainText('Practice mistakes cost no moves');
@@ -36,11 +37,11 @@ test('all three interactive lessons complete using the keyboard demonstration',a
     await board.focus();await board.press('ArrowDown');await board.press('ArrowRight');await board.press('Shift+ArrowUp');
     await expect(page.getByText(`LESSON ${lesson} COMPLETE`,{exact:true})).toBeVisible();
     await expect(page.locator('.lesson-result')).toBeVisible();
-    await page.getByRole('button',{name:lesson===3?'TRAINING COMPLETE':`NEXT LESSON ${lesson+1}`}).click();
+    await page.getByRole('button',{name:`NEXT LESSON ${lesson+1}`}).click();
   }
-  await expect(page.getByRole('dialog')).toBeVisible();
-  const career=await page.evaluate(()=>JSON.parse(localStorage.getItem('cyber_casino_career_v1')!));
-  expect(career.achievements).toContain('Hacker Academy');expect(career.unlocked).toBe(1);
+  await expect(page.getByTestId('training-guide')).toContainText('LESSON 4/22');
+  const progress=await page.evaluate(()=>JSON.parse(localStorage.getItem('cyber_casino_training_v2')!));
+  expect(progress.completedLessons).toBe(3);
 });
 test('daily has a fixed seed and inventory and preserves the campaign save',async({page})=>{
   await page.getByRole('button',{name:/INITIALIZE HACK/}).click();
@@ -175,6 +176,7 @@ test('GPU context loss switches to a playable board and 3D retry keeps progress'
 
 test('a hidden page suspends an in-flight move and resumes it safely',async({page})=>{
   await page.getByRole('button',{name:'HACKER TRAINING',exact:true}).click();
+  await page.getByRole('button',{name:'START GUIDED TRAINING'}).click();
   const board=page.getByTestId('game-board');await expect(board).toHaveAttribute('data-busy','false');
   await board.focus();await board.press('ArrowDown');await board.press('ArrowRight');await board.press('Shift+ArrowUp');
   await page.evaluate(()=>{Object.defineProperty(document,'hidden',{configurable:true,get:()=>true});document.dispatchEvent(new Event('visibilitychange'));});

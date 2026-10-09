@@ -3,12 +3,17 @@ import {dailyChallenge, DISTRICT_NAMES, getMission} from '../game/campaign';
 import {COSMETICS, PIECE_STYLES, completedNodes, totalStars, type Career} from '../game/progression';
 import type {Preferences} from '../game/preferences';
 import {experienceRank} from '../game/experience';
+import {LESSONS} from '../game/training';
 
 export function PreferencesPanel({value,onChange}:{value:Preferences;onChange:(value:Preferences)=>void}) {
   return <fieldset className="enhancement-settings"><legend>GRAPHICS & ACCESSIBILITY</legend>
     <label>Graphics quality<select aria-label="Graphics quality" value={value.quality} onChange={e=>onChange({...value,quality:e.target.value as Preferences['quality']})}>
       <option value="low">Low · lighter detail</option><option value="medium">Medium · balanced detail</option><option value="high">High · full detail</option>
     </select></label>
+    <label>Game resolution<select aria-label="Game resolution" value={value.resolution||'1080p'} onChange={e=>onChange({...value,resolution:e.target.value as Preferences['resolution']})}>
+      <option value="720p">1280 × 720</option><option value="1080p">1920 × 1080 · Standard</option><option value="1440p">2560 × 1440</option><option value="2160p">3840 × 2160</option><option value="native">Native display</option>
+    </select></label>
+    <p>Standard is 1080p. The game and interface scale to fill larger screens; phones and tablets keep their responsive layout.</p>
     {([['reducedMotion','Reduce motion and flashes'],['keyboard','Keyboard controls'],['hints','Automatic idle hints']] as const).map(([key,label])=>
       <label key={key}><span>{label}</span><input type="checkbox" checked={value[key]} onChange={e=>onChange({...value,[key]:e.target.checked})}/></label>)}
     <p>Arrow keys move focus. Enter selects a token. Shift + arrow swaps. Barriers show remaining shield health.</p>
@@ -21,7 +26,7 @@ export function HeistHub({career,onClose,onLevel,onDaily,onTutorial,onCosmetic,o
   return <div className="heist-hub" role="dialog" aria-modal="true" aria-labelledby="hub-title">
     <div className="hub-header"><div><p className="eyebrow">YOUR NEXT HEIST</p><h2 id="hub-title">The city is yours to crack.</h2><p>{totalStars(career)} mastery stars · {career.achievements.length} achievements</p><p data-testid="career-xp">Rank {experienceRank(career.xp)} · {career.xp.toLocaleString()} XP · {(1000-career.xp%1000).toLocaleString()} XP to next rank</p></div><button className="cyber-button" onClick={onClose} autoFocus>BACK</button></div>
     <nav className="hub-tabs" aria-label="Heist modes">{(['campaign','daily','style'] as const).map(t=><button key={t} className="cyber-button" aria-pressed={tab===t} onClick={()=>setTab(t)}>{t==='style'?'COSMETICS':t.toUpperCase()}</button>)}</nav>
-    {tab==='campaign'&&<><div className="hub-intro"><p>Earn one star for a breach, one for 5+ moves remaining, and one for using no boosters. Every completed campaign run earns booster loot and XP, including replays. Each run pays once. Clear without boosters for extra XP: fewer moves and harder levels increase your multiplier. Every tenth node includes a free booster slot round.</p><button className="cyber-button" onClick={onTutorial}>HACKER TRAINING · 3 LESSONS</button></div>
+    {tab==='campaign'&&<><div className="hub-intro"><p>Earn one star for a breach, one for 5+ moves remaining, and one for using no boosters. Every completed campaign run earns booster loot and XP, including replays. Each run pays once. Clear without boosters for extra XP: fewer moves and harder levels increase your multiplier. Every tenth node includes a free booster slot round.</p><button className="cyber-button" onClick={onTutorial}>HACKER TRAINING · {LESSONS.length} LESSONS</button></div>
       <div className="district-selector">{DISTRICT_NAMES.map((n,i)=><button key={n} className="cyber-button" aria-pressed={district===i} onClick={()=>setDistrict(i)}>{n}</button>)}</div>
       <div className="campaign-grid">{Array.from({length:10},(_,i)=>district*10+i+1).map(level=><button key={level} className="mission-card" disabled={level>career.unlocked} onClick={()=>onLevel(level)}>
         <span className="eyebrow">{level%10===0?'SECURITY CORE':'SUBNET'} {level}</span><strong>{getMission(level).label}</strong>

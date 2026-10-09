@@ -1,6 +1,7 @@
 node_modules/
 dist/
 test-results/
+test-results-online/
 playwright-report/
 coverage/
 .env
@@ -11,3 +12,7 @@ project-files.zip
 .DS_Store
 Thumbs.db
 reports/annotated-user-reference.png
+server-data/
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal

@@ -34,12 +34,13 @@ import {getDistrictForLevel} from './game/campaign';
 export {getDistrictForLevel} from './game/campaign';
 import {HeistEngine, TOKEN_NAMES, type Action, type Snapshot, type Frame} from './game/engine';
 import type {Preferences} from './game/preferences';
+import {resolutionDensity} from './game/display';
 import {pixelDensity,RenderBudget,RenderClock} from './game/rendering';
 import {SceneSurface} from './components/SceneSurface';
 import {FlatBoard} from './components/FlatBoard';
 import {hazardName} from './game/hazards';
 import {themeForLevel,type SceneTheme} from './game/themes';
-import {lesson,trainingSwap} from './game/training';
+import {lesson,trainingAction,trainingCells,TRAINING_LESSON_COUNT} from './game/training';
 const PiecesContext=React.createContext('classic');
 const MotionContext = React.createContext(false);
 const DetailContext = React.createContext<Preferences['quality']>('medium');
@@ -425,7 +426,7 @@ function SecuritySentinelDrone({comboStreak}: {comboStreak: number}) {
     if (!droneRef.current) return;
 
     const baseSpeed = comboStreak > 1 ? 2.5 : 1.2;
-    droneRef.current.position.x = 5.2 + Math.sin(t * baseSpeed) * 0.6;
+    droneRef.current.position.x = 6.4 + Math.sin(t * baseSpeed) * 0.4;
     droneRef.current.position.y = 3.8 + Math.cos(t * 1.8) * 0.3;
     droneRef.current.position.z = 1.0 + Math.sin(t * 2.2) * 0.4;
     droneRef.current.rotation.y = Math.sin(t * 1.5) * 0.4 - 0.4;
@@ -435,7 +436,7 @@ function SecuritySentinelDrone({comboStreak}: {comboStreak: number}) {
   });
 
   return (
-    <group name="sentinel" ref={droneRef} position={[5.2, 3.8, 1.0]}>
+    <group name="sentinel" ref={droneRef} position={[6.4, 3.8, 1.0]}>
       <mesh>
         <DetailSphere args={[0.32, 16, 16]} />
         <meshStandardMaterial color="#0b1124" metalness={0.9} roughness={0.2} />
@@ -478,7 +479,7 @@ function HolographicFloorPlatform({accentColor}: {accentColor: string}) {
   });
 
   return (
-    <group name="floor" position={[0, -0.2, -0.6]}>
+    <group name="floor" position={[0, -0.2, -0.6]} userData={{layer:'backdrop'}}>
       <group ref={ring1}>
         <mesh>
           <ringGeometry args={[6.2, 6.4, 64]} />
@@ -1552,9 +1553,9 @@ function CyberCasinoEnvironment({theme=themeForLevel(1)}:{theme?:SceneTheme}) {
         <gridHelper args={[90, 45, theme.primary, '#102244']} />
       </group>
 
-      <AnimatedBillboard position={[-8.0, 4.5, -7.5]} rotation={[0, 0.4, 0]} type="casino" size={[4.4, 2.3]} />
-      <AnimatedBillboard position={[8.0, 4.8, -7.5]} rotation={[0, -0.4, 0]} type="matrix" size={[4.4, 2.3]} />
-      <AnimatedBillboard position={[0, 7.2, -10.5]} rotation={[0.1, 0, 0]} type="warning" size={[5.8, 2.2]} />
+      <AnimatedBillboard position={[-6.4, 3.15, 0.3]} rotation={[0, 0.4, 0]} type="casino" size={[3.05, 1.6]} />
+      <AnimatedBillboard position={[6.4, 3.35, 0.3]} rotation={[0, -0.4, 0]} type="matrix" size={[3.05, 1.6]} />
+      <AnimatedBillboard position={[0, 5.45, -0.1]} rotation={[0.1, 0, 0]} type="warning" size={[3.6, 1.4]} />
 
       <FlyingCyberTraffic />
       <DigitalRainParticles />
@@ -1834,20 +1835,27 @@ interface GameProps {
   currentLevel:number; onDistrictWin:(score:number)=>void; onDistrictLose:()=>void;
   comboStreak:number; setComboStreak:(combo:number)=>void;
   initialTiles?:GridTile[]|null; initialSnapshot?:Snapshot; seed?:number; tutorial?:number;
+  onTrainingMistake?:()=>void; trainingControl?:'touch'|'pointer'|'keyboard';
   onSaveBoardState?:(tiles:GridTile[],score:number,snapshot?:Snapshot)=>void;
   cameraMode?:CameraMode; setCameraMode?:(mode:CameraMode)=>void;
   levelScore:number; setLevelScore:React.Dispatch<React.SetStateAction<number>>;
   activeBooster:BoosterType|null; setActiveBooster:(b:BoosterType|null)=>void; onConsumeBooster:(b:BoosterType)=>void;
   glitchWipeTriggerCount?:number; isPaused?:boolean; onProcessingChange?:(busy:boolean)=>void;
   preferences?:Preferences; accent?:string; pieceStyle?:string; themeLevel?:number; onProgress?:(snapshot:Snapshot)=>void;
+  onAction?:(action:Action,snapshot:Snapshot)=>Promise<boolean>;
 }
-function AdaptiveResolution({quality,paused=false,onLost}:{quality:Preferences['quality'];paused?:boolean;onLost:()=>void}) {
+function BackdropDepthStatus(){
+  const {scene,gl}=useThree();
+  useFrame(()=>{gl.domElement.dataset.ringDepth=String(scene.getObjectByName('floor')?.position.z);});
+  return null;
+}
+function AdaptiveResolution({quality,paused=false,onLost,resolution='1080p'}:{quality:Preferences['quality'];paused?:boolean;onLost:()=>void;resolution?:Preferences['resolution']}) {
   const {setDpr,invalidate,size,gl}=useThree();
   const budget=useRef(new RenderBudget(1,60));
   useEffect(()=>{
-    budget.current=new RenderBudget(pixelDensity(quality,window.devicePixelRatio,size.width,size.height),quality==='high'?60:quality==='medium'?45:30);
+    budget.current=new RenderBudget(Math.min(pixelDensity(quality,window.devicePixelRatio,size.width,size.height),resolutionDensity(size.width,size.height,resolution)),quality==='high'?60:quality==='medium'?45:30);
     setDpr(budget.current.dpr);invalidate();
-  },[quality,size.width,size.height,setDpr,invalidate]);
+  },[quality,resolution,size.width,size.height,setDpr,invalidate]);
   useEffect(()=>{
     const lost=(e:Event)=>{e.preventDefault();onLost();};
     gl.domElement.addEventListener('webglcontextlost',lost);
@@ -1871,6 +1879,7 @@ function SceneStatus({quality,onReady,theme}:{quality:Preferences['quality'];onR
     const corners=[[-x,-y],[-x,y],[x,-y],[x,y]].map(([cx,cy])=>{corner.set(cx,cy-.2,.8).project(camera);return [corner.x,corner.y];});
     gl.domElement.dataset.boardCorners=JSON.stringify(corners);
     gl.domElement.dataset.environment=scene.getObjectByName(`environment-${theme}`)?.name||'missing';
+    gl.domElement.dataset.ringDepth=String(scene.getObjectByName('floor')?.position.z);
   });
   useEffect(()=>{frame.current=0;invalidate();const timer=setTimeout(()=>{gl.domElement.dataset.environment=scene.getObjectByName(`environment-${theme}`)?.name||'missing';onReady(['city','hacker','sentinel','holograms','floor'].filter(name=>!!scene.getObjectByName(name)).join(','));invalidate();},0);return()=>clearTimeout(timer);},[scene,gl,invalidate,quality,onReady,theme]);
   return null;
@@ -1891,6 +1900,13 @@ export function Game(props:GameProps) {
     return e;
   });
   const [tiles,setTiles]=useState(()=>engine.snapshot().tiles);
+  const coach=useRef<HTMLElement>(null),[trainingTop,setTrainingTop]=useState(164);
+  useEffect(()=>{
+    if(!props.tutorial||!coach.current)return;
+    const measure=()=>{const node=coach.current;if(node)setTrainingTop(node.offsetTop+node.clientHeight+10);};measure();
+    const observer=typeof ResizeObserver==='undefined'?null:new ResizeObserver(measure);observer?.observe(coach.current);window.addEventListener('resize',measure);
+    return()=>{observer?.disconnect();window.removeEventListener('resize',measure);};
+  },[props.tutorial]);
   const [busy,setBusy]=useState(false),busyRef=useRef(false);
   const [selected,setSelectedState]=useState<[number,number]|null>(null),selectedRef=useRef(selected);
   const select=(p:[number,number]|null)=>{selectedRef.current=p;setSelectedState(p);};
@@ -2204,13 +2220,19 @@ export function Game(props:GameProps) {
   const act=async(action:Action)=>{
     const p=latest.current;
     if(!run.active||run.paused||busyRef.current||p.gameState.status!=='PLAYING'||(p.gameState.moves<=0&&action.kind!=='booster'))return;
-    if(p.tutorial&&!trainingSwap(action)){gameAudio.playErrorBuzz();setMessage('Practice safely: swap row 2, column 2 with the piece directly above it. No move was spent.');return;}
+    if(p.tutorial&&!trainingAction(p.tutorial,action)){p.onTrainingMistake?.();gameAudio.playErrorBuzz();setMessage(`Practice safely: ${lesson(p.tutorial).step||'swap row 2, column 2 with the piece directly above it.'} No move was spent.`);return;}
+    if(p.onAction){
+      busyRef.current=true;setBusy(true);
+      try{if(!await p.onAction(action,engine.snapshot())){finish();return;}}
+      catch{setMessage('Connection interrupted. Your move could not be confirmed. Reconnect and try again.');finish();return;}
+      if(!run.active){return;}
+    }
     const result=engine.action(action);
-    if(!result.accepted){if(action.kind==='booster'&&action.booster==='overload_core'){gameAudio.playErrorBuzz();setMessage('Choose an unshielded token for Overload. Packets and vaults keep their objectives. Booster kept.');}return;}
+    if(!result.accepted){if(action.kind==='booster'&&action.booster==='overload_core'){gameAudio.playErrorBuzz();setMessage('Choose an unshielded token for Overload. Packets and vaults keep their objectives. Booster kept.');}finish();return;}
     busyRef.current=true;setBusy(true);select(null);setHint(undefined);drag.current=null;
-    if(result.spendsMove)setGameState((s:any)=>({...s,moves:s.moves-1+(result.bonusMoves||0)}));
+    if(result.spendsMove||result.bonusMoves)setGameState((s:any)=>({...s,moves:s.moves-(result.spendsMove?1:0)+(result.bonusMoves||0)}));
     if(result.bonusMoves){gameAudio.playPowerupChime();addFloatingText('+5 MOVES','#00ff88',0,0);}
-    if(action.kind==='booster'){onConsumeBooster(action.booster);setActiveBooster(null);}
+    if(action.kind==='booster'){if(!p.tutorial)onConsumeBooster(action.booster);setActiveBooster(null);}
     for(const frame of result.frames){
       setTiles(frame.tiles);setComboStreak(frame.combo);
       if(frame.message)setMessage(frame.message);
@@ -2230,7 +2252,7 @@ export function Game(props:GameProps) {
     if(booster){void actRef.current({kind:'booster',booster,at});return;}
     if(t.locked){gameAudio.playErrorBuzz();setMessage(t.vault?'Vault weak point: match beside it.':`${hazardName(t)} · Shield health ${t.lockHealth}. Match beside this hazard.`);return;}
     const previous=selectedRef.current;
-    if(latest.current.tutorial&&!previous&&!(col===1&&(row===0||row===1))){setMessage('Start with the cyan diamond at row 2, column 2. The outlined pair shows your practice swap.');return;}
+    if(latest.current.tutorial&&!previous&&!trainingCells(latest.current.tutorial).some(p=>p[0]===row&&p[1]===col)){latest.current.onTrainingMistake?.();setMessage(`Follow the highlighted practice action. ${lesson(latest.current.tutorial).step||'Start with the cyan diamond at row 2, column 2.'}`);return;}
     if(previous&&previous[0]===row&&previous[1]===col){if(t.special!=='none')void actRef.current({kind:'special',at});else select(null);return;}
     if(previous&&Math.abs(previous[0]-row)+Math.abs(previous[1]-col)===1){void actRef.current({kind:'swap',from:previous,to:at});return;}
     if(!previous&&t.special!=='none')setMessage('Tap this special again to fire, or select an adjacent special to combine them.');
@@ -2256,7 +2278,7 @@ export function Game(props:GameProps) {
     if(isPaused||busy||gameState.status!=='PLAYING')return;
     const s=engine.snapshot();props.onProgress?.(s);
     if(engine.complete()){onDistrictWin(engine.state.score);return;}
-    if(gameState.moves<=0){onDistrictLose();return;}
+    if(gameState.moves<=0&&!props.tutorial){onDistrictLose();return;}
     props.onSaveBoardState?.(s.tiles,engine.state.score,s);
   },[tiles,busy,isPaused,gameState.moves,gameState.status,engine,onDistrictWin,onDistrictLose,props.onSaveBoardState,props.onProgress]);
   useEffect(()=>{
@@ -2274,18 +2296,18 @@ export function Game(props:GameProps) {
       if(e.shiftKey)void actRef.current({kind:'swap',from:focus,to});setFocus(to);
     }else if(e.key==='Enter'||e.key===' '){e.preventDefault();clickRef.current({},...focus);}
   };
-  const hintAt=(tile:GridTile)=>props.tutorial&&engine.state.turn===0?tile.col===1&&(tile.row===0||tile.row===1):hint?.kind==='swap'?[hint.from,hint.to].some(p=>p[0]===tile.row&&p[1]===tile.col):hint?.kind==='special'&&hint.at[0]===tile.row&&hint.at[1]===tile.col;
+  const hintAt=(tile:GridTile)=>props.tutorial&&engine.state.turn===0?trainingCells(props.tutorial).some(p=>p[0]===tile.row&&p[1]===tile.col):hint?.kind==='swap'?[hint.from,hint.to].some(p=>p[0]===tile.row&&p[1]===tile.col):hint?.kind==='special'&&hint.at[0]===tile.row&&hint.at[1]===tile.col;
   const focused=engine.at(focus);
   const accent=props.accent||getDistrictForLevel(currentLevel).accentColor;
-  return <div data-testid="game-board" data-theme={theme.id} data-motion={theme.motion} data-pieces={pieceStyle} data-training={!!props.tutorial} data-paused={isPaused} style={{'--chapter-primary':theme.primary,'--chapter-secondary':theme.secondary,'--chapter-sky':theme.sky} as React.CSSProperties} data-hint={tiles.filter(hintAt).map(t=>`${t.row},${t.col}`).join(';')} data-seed={engine.state.seed} data-turn={engine.state.turn} data-scene-elements={sceneElements} data-feedback={lastFeedback} data-particles={particles.length} data-beams={laserBeams.length} data-shockwaves={shockwaves.length} data-busy={busy} data-selected={selected?selected.join(','):''}
+  return <div data-testid="game-board" data-theme={theme.id} data-motion={theme.motion} data-pieces={pieceStyle} data-training={!!props.tutorial} data-paused={isPaused} style={{'--chapter-primary':theme.primary,'--chapter-secondary':theme.secondary,'--chapter-sky':theme.sky,'--training-top':trainingTop+'px'} as React.CSSProperties} data-hint={tiles.filter(hintAt).map(t=>`${t.row},${t.col}`).join(';')} data-seed={engine.state.seed} data-turn={engine.state.turn} data-scene-elements={sceneElements} data-feedback={lastFeedback} data-particles={particles.length} data-beams={laserBeams.length} data-shockwaves={shockwaves.length} data-busy={busy} data-selected={selected?selected.join(','):''}
     className="w-full h-full relative select-none" onPointerLeave={()=>setPointer({x:0,y:0})} onPointerMove={e=>{if(preferences.reducedMotion||e.pointerType!=='mouse')return;const r=e.currentTarget.getBoundingClientRect();setPointer({x:2*(e.clientX-r.left)/r.width-1,y:1-2*(e.clientY-r.top)/r.height});}}
     onKeyDown={key} tabIndex={preferences.keyboard?0:-1} role="application" aria-label="Matrix board. Arrow keys move focus. Enter selects. Shift and arrow swaps.">
     <div className="matrix-stage"><SceneSurface fallback={<FlatBoard pieceStyle={pieceStyle} motion={theme.motion} tiles={tiles} rows={rows} cols={cols} selected={(selected||(keyboardFocus?focus:null))?.join(',')||''} hints={tiles.filter(hintAt).map(t=>`${t.row},${t.col}`)} onTile={dispatch} particles={particles} rings={shockwaves} texts={floatingTexts} beams={laserBeams}/>}>
     {onLost=><MotionContext.Provider value={isPaused||preferences.reducedMotion}><DetailContext.Provider value={preferences.quality}><PiecesContext.Provider value={pieceStyle}>
-    <Canvas key={preferences.quality} frameloop="demand" dpr={[.5,preferences.quality==='high'?1.75:preferences.quality==='medium'?1.25:1]} gl={{antialias:preferences.quality==='high',powerPreference:'high-performance'}}
+    <Canvas resize={{offsetSize:true}} key={preferences.quality} frameloop="demand" dpr={[.5,preferences.quality==='high'?1.75:preferences.quality==='medium'?1.25:1]} gl={{antialias:preferences.quality==='high',powerPreference:'high-performance'}}
       camera={{position:[0,-.2,13.5],fov:getConfig('fov')||48}} className="w-full h-full block">
       <color attach="background" args={[theme.sky]}/>
-      <AdaptiveResolution quality={preferences.quality} paused={isPaused} onLost={onLost}/><SceneStatus theme={theme.id} quality={preferences.quality} onReady={setSceneElements}/>
+      <AdaptiveResolution quality={preferences.quality} resolution={preferences.resolution} paused={isPaused} onLost={onLost}/><SceneStatus theme={theme.id} quality={preferences.quality} onReady={setSceneElements}/>
       <hemisphereLight color={theme.secondary} groundColor="#0b132b" intensity={1.1}/>
       <directionalLight position={[7,12,9]} intensity={3.6} color={accent}/>
       <directionalLight position={[-7,-9,7]} intensity={2} color={theme.secondary}/><ambientLight color="#151c38" intensity={1.8}/>
@@ -2384,7 +2406,7 @@ export function Game(props:GameProps) {
       {engine.state.mission.boss&&<span className="text-amber-300" data-testid="boss-warning">{engine.bossWarning()}</span>}
       {!props.tutorial&&<span className="chapter-name">{theme.name} · chapter {Math.floor(((props.themeLevel??currentLevel)-1)/10)+1}</span>}
     </div>
-    {!!props.tutorial&&<aside className="training-coach" aria-label="Training guide" data-testid="training-guide"><strong>LESSON {props.tutorial}/3 · {lesson(props.tutorial).title}</strong><p>{lesson(props.tutorial).goal}</p><p className="training-step" aria-live="polite">{busy?'Watch the match clear, then the pieces fall.':selected?.[0]===1&&selected?.[1]===1?'2 · Now select the chip directly above it at row 1, column 2.':'1 · Select the cyan diamond at row 2, column 2 (outlined).'}</p><small>Tap the two pieces, or drag upward. Keyboard: arrows to R2 C2, then Shift + ↑. Practice mistakes cost no moves.</small></aside>}
+    {!!props.tutorial&&<aside ref={coach} className="training-coach" aria-label="Training guide" data-testid="training-guide"><strong>LESSON {props.tutorial}/{TRAINING_LESSON_COUNT} · {lesson(props.tutorial).title}</strong><p>{lesson(props.tutorial).goal}</p><p className="training-step" aria-live="polite">{lesson(props.tutorial).kind==='overview'?lesson(props.tutorial).result:busy?'Watch the effect resolve, then the pieces settle.':lesson(props.tutorial).step||(selected?.[0]===1&&selected?.[1]===1?'2 · Now select the chip directly above it at row 1, column 2.':'1 · Select the cyan diamond at row 2, column 2 (outlined).')}</p><small>{props.trainingControl==='touch'?'Touch: tap the highlighted pieces or drag between them.':props.trainingControl==='keyboard'?'Keyboard: arrows move focus, Enter selects, Shift + arrow swaps.':'Pointer: select the highlighted pieces or drag between them. Keyboard works too.'} Practice mistakes cost no moves.</small>{lesson(props.tutorial).kind==='overview'?<button className="cyber-button" style={{pointerEvents:'auto',minHeight:44}} disabled={busy||isPaused} onClick={()=>onDistrictWin(engine.state.score)}>ACKNOWLEDGE & COMPLETE LESSON</button>:lesson(props.tutorial).booster?<button className="cyber-button" style={{pointerEvents:'auto',minHeight:44}} disabled={busy||isPaused} onClick={()=>void actRef.current(lesson(props.tutorial!).action!)}>PRACTICE BOOSTER</button>:null}</aside>}
     <div className="board-tools">
       <button className="cyber-button" disabled={busy||isPaused} onClick={()=>{gameAudio.playCrispClick();setHint(engine.hint());}}>HINT</button>
       {preferences.keyboard&&<span className="keyboard-readout" role="status">R{focus[0]+1} C{focus[1]+1}: {focused?.packet?'Data packet':focused?.vault?'Vault':TOKEN_NAMES[focused?.type??0]}{focused?.special==='lineCross'?' · Cross Laser':''}{focused?.locked?` · ${hazardName(focused)} · shield ${focused.lockHealth}`:''}. Arrows · Enter · Shift+arrow</span>}
@@ -2396,8 +2418,9 @@ export function Game(props:GameProps) {
 export function MainMenuScene({preferences,accent='#00f7ff',isPaused=false,level=1}:{preferences:Preferences;accent?:string;isPaused?:boolean;level?:number}) {
   const theme=themeForLevel(level);
   return <div className="main-menu-scene" data-testid="main-menu-scene" data-theme={theme.id} style={{'--chapter-primary':theme.primary,'--chapter-secondary':theme.secondary,'--chapter-sky':theme.sky} as React.CSSProperties} aria-hidden="true">
-    <SceneSurface decorative fallback={<div className="menu-city-fallback"/>}>{onLost=><MotionContext.Provider value={preferences.reducedMotion||isPaused}><DetailContext.Provider value={preferences.quality}><Canvas key={preferences.quality} frameloop="demand" camera={{position:[0,-.2,18],fov:48}} dpr={[.5,preferences.quality==='low'?1:preferences.quality==='medium'?1.25:1.75]} gl={{antialias:preferences.quality==='high'}}>
-      <AdaptiveResolution quality={preferences.quality} paused={isPaused} onLost={onLost}/>
+    <SceneSurface decorative fallback={<div className="menu-city-fallback"/>}>{onLost=><MotionContext.Provider value={preferences.reducedMotion||isPaused}><DetailContext.Provider value={preferences.quality}><Canvas resize={{offsetSize:true}} key={preferences.quality} frameloop="demand" camera={{position:[0,-.2,18],fov:48}} dpr={[.5,preferences.quality==='low'?1:preferences.quality==='medium'?1.25:1.75]} gl={{antialias:preferences.quality==='high'}}>
+      <AdaptiveResolution quality={preferences.quality} resolution={preferences.resolution} paused={isPaused} onLost={onLost}/>
+      <BackdropDepthStatus/>
       <color attach="background" args={[theme.sky]}/>
       <hemisphereLight color={theme.secondary} groundColor="#0b132b" intensity={1.1}/>
       <directionalLight position={[7,12,9]} intensity={3.6} color={accent}/>
