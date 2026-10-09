@@ -1,5 +1,6 @@
 import type {BoosterType,BoosterInventory} from '../types';
 import {parseBoosters} from './persistence';
+import {createRequestId} from './id';
 export const BONUS_KEY='cyber_casino_bonus_v1';
 export const INVENTORY_KEY='cyber_casino_boosters_v5';
 export const SLOT_PRIZES=[
@@ -24,7 +25,7 @@ export function readBonus(raw:string|null):BonusRound|null {
 export function createBonus(level:number,random=Math.random):BonusRound {
   if(!Number.isSafeInteger(level)||level<10||level%10)throw new Error('Bonus rounds require a tenth campaign level.');
   const index=Math.min(4,Math.max(0,Math.floor(random()*5)));
-  return {id:crypto.randomUUID(),level,booster:SLOT_PRIZES[index].booster,claimed:false,applied:false};
+  return {id:createRequestId(),level,booster:SLOT_PRIZES[index].booster,claimed:false,applied:false};
 }
 /** Write the receipt first; replaying an interrupted inventory write uses its exact balance, never another addition. */
 export function recoverBonus(store:Store):BonusRound|null {

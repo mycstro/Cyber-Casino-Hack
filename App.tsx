@@ -23,10 +23,16 @@ import type {CameraMode} from './Game';
 import {getDistrictForLevel, dailyChallenge} from './game/campaign';
 import {COSMETICS, PIECE_STYLES, canEquipPieces, readCareer, recordCompletion, type Career} from './game/progression';
 import {themeForLevel} from './game/themes';
-import {lesson} from './game/training';
+import {lesson,LESSONS} from './game/training';
+import {readTraining,recordTraining,readPendingTraining,pendingTrainingPerformance,TrainingQueueSync,trainingQueueKey} from './game/training-progress';
+import {TrainingAcademy} from './components/TrainingAcademy';
 import {readPreferences} from './game/preferences';
+import {displayLayout} from './game/display';
+import {createRequestId} from './game/id';
+import {useOnline,onlineApi,type Room,type Profile} from './game/online';
+import {OnlinePanel} from './components/OnlinePanel';
 import {HeistHub, PreferencesPanel} from './components/HeistHub';
-import type {Snapshot} from './game/engine';
+import type {Snapshot,Action} from './game/engine';
 import {readStorage, writeStorage} from './game/storage';
 import {loadScene} from './game/scene-loader';
 import {activeHazards} from './game/hazards';
@@ -71,7 +77,7 @@ const DEFAULT_BOOSTERS: BoosterInventory = {
   overclock_moves: 2,
   glitch_wipe: 1,
 };
-type RunOptions={mode?:'campaign'|'daily'|'tutorial';tutorial?:number;seed?:number;snapshot?:Snapshot};
+type RunOptions={mode?:'campaign'|'daily'|'tutorial'|'multiplayer';tutorial?:number;seed?:number;snapshot?:Snapshot};
 type DeferredRun=[number,GridTile[]|null,number|undefined,number|undefined,number|undefined,RunOptions|undefined];
 
 export default function App() {
@@ -83,15 +89,27 @@ export default function App() {
   const [levelScore, setLevelScore] = useState(0);
   const [comboStreak, setComboStreak] = useState(0);
   const [gameKey, setGameKey] = useState(0);
+  const currentRunKey=useRef(gameKey);currentRunKey.current=gameKey;
   const [initialTiles, setInitialTiles] = useState<GridTile[] | null>(null);
 
-  const [mode,setMode] = useState<'campaign'|'daily'|'tutorial'>('campaign');
+  const [mode,setMode] = useState<'campaign'|'daily'|'tutorial'|'multiplayer'>('campaign');
   const modeRef=useRef(mode);modeRef.current=mode;
   const [tutorial,setTutorial]=useState(0);
+  const [academyOpen,setAcademyOpen]=useState(false);
+  const [trainingPerformance,setTrainingPerformance]=useState(()=>readTraining(readStorage('cyber_casino_training_v2'),LESSONS.length));
+  const [trainingQueueRevision,setTrainingQueueRevision]=useState(0);
+  const trainingSync=useRef(new TrainingQueueSync<Profile>());
+  const trainingRun=useRef<{lesson:number;finished:boolean;mistakes:number;accountId?:string}>();
+  const trainingRecorder=useRef<(completed:boolean)=>void>(()=>{});
   const [seed,setSeed]=useState<number|undefined>();
   const [initialSnapshot,setInitialSnapshot]=useState<Snapshot|undefined>();
   const [snapshot,setSnapshot]=useState<Snapshot|undefined>();
   const boostersUsed=useRef(0);
+  const soloReceipt=useRef<{key:number;id:string;sequence:number;pending?:{action:string;requestId:string}}>();
+  const accountInventory=useRef(false);
+  const localCampaign=useRef(false);
+  const accountProfile=useRef<ReturnType<typeof useOnline>['user']>(null);
+  const onlineBonusId=useRef<string>();
   const latestSnapshot=useRef<Snapshot>();
   const handleProgress=useCallback((s:Snapshot)=>{latestSnapshot.current=s;setSnapshot(s);},[]);
   const [lastExperience,setLastExperience]=useState<ExperienceReward|null>(null);
@@ -102,6 +120,9 @@ export default function App() {
   const [career,setCareer]=useState<Career>(()=>readCareer(readStorage('cyber_casino_career_v1')));
   const careerRef=useRef(career);careerRef.current=career;
   const [preferences,setPreferences]=useState(()=>readPreferences(readStorage('cyber_casino_preferences_v1')));
+  const [viewport,setViewport]=useState(()=>({width:window.innerWidth,height:window.innerHeight}));
+  useEffect(()=>{const resized=()=>setViewport({width:window.innerWidth,height:window.innerHeight});window.addEventListener('resize',resized);return()=>window.removeEventListener('resize',resized);},[]);
+  const display=displayLayout(viewport.width,viewport.height,preferences.resolution);
   const [hubOpen,setHubOpen]=useState(false);
   const [dailyBest,setDailyBest]=useState<number>(()=>{try {const v=JSON.parse(localStorage.getItem('cyber_casino_daily_v1')||'{}');return v.day===dailyChallenge().day&&Number.isFinite(v.score)&&v.score>=0?v.score:0;}catch{return 0;}});
   const dailyRun=useRef(dailyChallenge());
@@ -118,9 +139,9 @@ export default function App() {
     return DEFAULT_BOOSTERS;
   });
 
-  const boosters = mode==='campaign'?careerBoosters:runBoosters;
+  const boosters = mode==='campaign'&&!localCampaign.current?careerBoosters:runBoosters;
   const setBoosters=useCallback((update:React.SetStateAction<BoosterInventory>)=>{
-    if(modeRef.current==='campaign')setCareerBoosters(update);else setRunBoosters(update);
+    if(modeRef.current==='campaign'&&!localCampaign.current)setCareerBoosters(update);else setRunBoosters(update);
   },[]);
   const [isBoardBusy, setIsBoardBusy] = useState(false);
   const completedRunRef = useRef(false);
@@ -197,7 +218,7 @@ export default function App() {
   // Persist booster inventory
   useEffect(() => {
     try {
-      localStorage.setItem(BOOSTERS_STORAGE_KEY, JSON.stringify(careerBoosters));
+      if(!accountInventory.current)localStorage.setItem(BOOSTERS_STORAGE_KEY, JSON.stringify(careerBoosters));
     } catch (_) {}
   }, [careerBoosters]);
 
@@ -299,6 +320,11 @@ export default function App() {
     ) => {
       const nextMode=options?.mode||'campaign';
       if(nextMode==='campaign'&&bonusRef.current){deferredRun.current=[lvl,resumeTiles,resumeTotalScore,resumeLevelScore,resumeMoves,options];setHubOpen(false);setBonusOpen(true);return;}
+      if(trainingRun.current&&!trainingRun.current.finished)trainingRecorder.current(false);
+      trainingRun.current=nextMode==='tutorial'?{lesson:options?.tutorial||1,finished:false,mistakes:0,accountId:accountProfile.current?.id}:undefined;
+      localCampaign.current=nextMode==='campaign'&&accountInventory.current&&!!(resumeTiles||options?.snapshot);
+      if(localCampaign.current)setRunBoosters(parseBoosters(readStorage(BOOSTERS_STORAGE_KEY),DEFAULT_BOOSTERS));
+      setAcademyOpen(false);
       modeRef.current=nextMode;setMode(nextMode);setTutorial(options?.tutorial||0);setSeed(options?.seed);
       setInitialSnapshot(options?.snapshot);setSnapshot(undefined);boostersUsed.current=options?.snapshot?.progress.boosters||0;
       latestSnapshot.current=options?.snapshot;setLastExperience(null);
@@ -343,6 +369,83 @@ export default function App() {
     [sdk],
   );
 
+  const online=useOnline({
+    onRaceStart:(room:Room)=>{setRunBoosters({emp_bomb:0,line_laser:0,overload_core:0,overclock_moves:0,glitch_wipe:0});initGame(room.level,null,room.snapshot.score,room.snapshot.score,room.moves,{mode:'multiplayer',seed:room.seed,snapshot:room.snapshot});},
+    onSolo:level=>initGame(level,null,0,0,undefined,{mode:'campaign'}),
+    onMenu:()=>{modeRef.current='campaign';setMode('campaign');setGameState(s=>({...s,status:'START'}));setIsSettingsOpen(false);setIsGameMenuOpen(false);},
+  });
+  const onlineUserId=online.user?.id;
+  accountProfile.current=online.user;
+  const onlineIdentity=useRef(onlineUserId);onlineIdentity.current=onlineUserId;
+  const trainingDevice=viewport.width<600?'mobile':viewport.width<1100?'tablet':'desktop';
+  const trainingControl=online.user?.controls?.[trainingDevice]??(isMobile?'touch':'pointer');
+  useEffect(()=>{if(online.user?.controls)setPreferences(p=>({...p,keyboard:online.user!.controls!.keyboardEnabled}));},[onlineUserId,online.user?.controls?.keyboardEnabled]);
+  const flushTraining=useCallback(async()=>{
+    if(!onlineUserId)return;
+    try{await trainingSync.current.flush(onlineUserId,{
+      count:LESSONS.length,read:readStorage,write:writeStorage,
+      post:async r=>(await onlineApi.training(r.lesson,r.moves,r.completed,r.requestId,r.mistakes)).user,
+      isCurrent:id=>onlineIdentity.current===id,
+      onProfile:profile=>online.setUser(profile),
+      onQueueChanged:()=>setTrainingQueueRevision(n=>n+1),
+    });}catch{showNotification('Training saved on this device. Profile sync will retry when you reconnect.');}
+  },[onlineUserId]);
+  useEffect(()=>{void flushTraining();},[flushTraining]);
+  useEffect(()=>{const reconnect=()=>{void flushTraining();};window.addEventListener('online',reconnect);return()=>window.removeEventListener('online',reconnect);},[flushTraining]);
+  const academyPerformance=useMemo(()=>online.user?pendingTrainingPerformance(online.user.training??readTraining(null,LESSONS.length),readPendingTraining(readStorage(trainingQueueKey(online.user.id)),LESSONS.length)):trainingPerformance,[online.user,trainingPerformance,trainingQueueRevision]);
+  trainingRecorder.current=(completed:boolean)=>{
+    const run=trainingRun.current;if(!run||run.finished)return;run.finished=true;
+    const moves=latestSnapshot.current?.turn||0;
+    if(!run.accountId)setTrainingPerformance(p=>{const next=recordTraining(p,run.lesson,moves,completed,run.mistakes);writeStorage('cyber_casino_training_v2',next);return next;});
+    else {const key=trainingQueueKey(run.accountId),queue=readPendingTraining(readStorage(key),LESSONS.length);queue.push({lesson:run.lesson,moves,completed,mistakes:run.mistakes,requestId:createRequestId()});if(!writeStorage(key,queue))showNotification('Training could not be saved. Browser storage is unavailable.');setTrainingQueueRevision(n=>n+1);if(run.accountId===onlineUserId)void flushTraining();}
+  };
+  useEffect(()=>{if(gameState.status==='START')trainingRecorder.current(false);},[gameState.status]);
+  const previousAccount=useRef<string>();
+  const guestInventory=useRef<BoosterInventory>();
+  useEffect(()=>{
+    const pending=online.pendingBonus;
+    if(!onlineUserId||!pending)return;
+    const round:BonusData={id:pending.id,level:pending.level,booster:pending.booster,claimed:false,applied:false};
+    onlineBonusId.current=pending.id;bonusRef.current=round;setBonus(round);
+  },[onlineUserId,online.pendingBonus?.id]);
+  useEffect(()=>{
+    soloReceipt.current=undefined;
+    accountInventory.current=!!onlineUserId;
+    if(onlineUserId&&previousAccount.current!==onlineUserId){if(!previousAccount.current)guestInventory.current={...careerBoosters};if(online.user?.inventory)setCareerBoosters(online.user.inventory);}
+    if(!onlineUserId&&previousAccount.current&&guestInventory.current)setCareerBoosters(guestInventory.current);
+    if(previousAccount.current!==onlineUserId){
+      if((modeRef.current==='campaign'||modeRef.current==='multiplayer')&&gameStateRef.current.status!=='START'){setActiveBooster(null);setIsGameMenuOpen(false);setIsSettingsOpen(false);setGameState(s=>({...s,status:'START'}));localCampaign.current=false;}
+      const pending=onlineUserId?online.pendingBonus:null;
+      const round:BonusData|null=pending?{id:pending.id,level:pending.level,booster:pending.booster,claimed:false,applied:false}:onlineUserId?null:readBonus(readStorage(BONUS_KEY));
+      onlineBonusId.current=pending?.id;bonusRef.current=round;setBonus(round);setBonusOpen(false);
+    }
+    previousAccount.current=onlineUserId;
+  },[onlineUserId]);
+  useEffect(()=>{if(online.user?.inventory)setCareerBoosters(online.user.inventory);},[online.user?.inventory]);
+  useEffect(()=>{if(localCampaign.current){writeStorage(BOOSTERS_STORAGE_KEY,runBoosters);guestInventory.current={...runBoosters};}},[runBoosters]);
+  useEffect(()=>{
+    if(modeRef.current==='multiplayer'&&online.room?.status==='results'){setActiveBooster(null);setGameState(s=>({...s,status:'LEVEL_COMPLETE'}));}
+    if(modeRef.current==='multiplayer'&&online.user===null){modeRef.current='campaign';setMode('campaign');setGameState(s=>({...s,status:'START'}));}
+  },[online.room?.status,online.user]);
+  const sendOnlineAction=async(action:Action,s:Snapshot):Promise<boolean>=>{
+    const identity=onlineIdentity.current;
+    if(modeRef.current==='multiplayer')return !!await online.submitAction(action,s);
+    if(!online.user||modeRef.current!=='campaign'||initialTiles||initialSnapshot)return true;
+    if(!soloReceipt.current||soloReceipt.current.key!==gameKey){const run=await onlineApi.soloStart(currentLevel,s.seed);soloReceipt.current={key:gameKey,id:run.runId,sequence:run.sequence};}
+    const receipt=soloReceipt.current;
+    const actionKey=JSON.stringify(action);
+    if(receipt.pending&&receipt.pending.action!==actionKey)throw new Error('Retry the interrupted move before making a different move.');
+    receipt.pending??={action:actionKey,requestId:createRequestId()};
+    const result=await onlineApi.soloAction(receipt.id,receipt.sequence,action,receipt.pending.requestId,s);
+    if(onlineIdentity.current!==identity||result.user.id!==identity||currentRunKey.current!==gameKey)return false;
+    receipt.pending=undefined;
+    receipt.sequence=result.sequence;
+    if(result.user)online.setUser(result.user);
+    if(result.bonus){const pending=result.bonus;const round:BonusData={id:pending.id,level:pending.level,booster:pending.booster,claimed:false,applied:false};onlineBonusId.current=pending.id;bonusRef.current=round;setBonus(round);online.setPendingBonus(pending);}
+    if(result.complete)await online.refresh().catch(()=>showNotification('Heist verified. Refresh your profile when the connection returns.'));
+    return onlineIdentity.current===identity&&currentRunKey.current===gameKey&&result.accepted;
+  };
+
   const handleContinueGame = useCallback(() => {
     if (!savedGame) {
       initGame(1);
@@ -362,6 +465,7 @@ export default function App() {
   // Booster consumption callback
   const handleConsumeBooster = useCallback((b: BoosterType) => {
     boostersUsed.current++;
+    if(accountProfile.current&&modeRef.current==='campaign'&&!localCampaign.current)return;
     setBoosters((prev) => ({
       ...prev,
       [b]: Math.max(0, prev[b] - 1),
@@ -370,7 +474,7 @@ export default function App() {
 
   // Booster activation from toolbar
   const handleBoosterButtonClick = useCallback(
-    (b: BoosterType) => {
+    async (b: BoosterType) => {
       if (gameState.status !== 'PLAYING' || isBoardBusy || modeRef.current==='tutorial') return;
 
       const availableCount = boosters[b] || 0;
@@ -382,9 +486,10 @@ export default function App() {
 
       // Instant activation boosters
       if (b === 'overclock_moves') {
+        if(online.user&&latestSnapshot.current){setIsBoardBusy(true);try{if(!await sendOnlineAction({kind:'booster',booster:b},latestSnapshot.current))return;}catch{showNotification('Cannot reach the account server. No booster was spent.');return;}finally{setIsBoardBusy(false);}}
         boostersUsed.current++;
         gameAudio.playPowerupChime();
-        setBoosters((prev) => ({
+        if(!(accountProfile.current&&modeRef.current==='campaign'&&!localCampaign.current))setBoosters((prev) => ({
           ...prev,
           overclock_moves: Math.max(0, prev.overclock_moves - 1),
         }));
@@ -421,7 +526,7 @@ export default function App() {
         showNotification(`🎯 SELECT ANY GRID TILE TO DEPLOY ${names[b]}!`);
       }
     },
-    [boosters, activeBooster, gameState.status, isBoardBusy, showNotification],
+    [boosters, activeBooster, gameState.status, isBoardBusy, showNotification,online.user,gameKey,currentLevel,initialTiles,initialSnapshot],
   );
 
   // District Victory Handler: Award leftover move bonuses and grant reward pack
@@ -431,7 +536,9 @@ export default function App() {
     gameAudio.playVictoryFanfare();
     const remainingMoves = gameStateRef.current.moves || 0;
     const moveBonus = remainingMoves * 200;
+    if(modeRef.current==='multiplayer'){setGameState(s=>({...s,status:'LEVEL_COMPLETE'}));return;}
     if(modeRef.current!=='campaign') {
+      if(modeRef.current==='tutorial')trainingRecorder.current(true);
       setLastLevelRewards(null);setLastStars(0);setPiecesWon([]);
       if(modeRef.current==='daily') {
         const score=gameStateRef.current.score+moveBonus;
@@ -443,7 +550,7 @@ export default function App() {
     setCareer(result.career);setLastStars(result.stars);setPiecesWon(result.piecesWon);
     setLastExperience(result.experience);
     // Fix the outcome before showing the machine so reloads cannot reroll it.
-    if(currentLevel%10===0){const round=createBonus(currentLevel);bonusRef.current=round;setBonus(round);writeStorage(BONUS_KEY,round);}
+    if(currentLevel%10===0){const ranked=accountProfile.current&&!localCampaign.current;const round=onlineBonusId.current&&bonusRef.current?.level===currentLevel?bonusRef.current:ranked?null:createBonus(currentLevel);if(round){bonusRef.current=round;setBonus(round);if(onlineBonusId.current!==round.id)writeStorage(BONUS_KEY,round);}}
 
     // Calculate level completion loot rewards
     const isBossSector = currentLevel % 10 === 0 || currentLevel % 50 === 0;
@@ -460,7 +567,7 @@ export default function App() {
     if (isBossSector || isMiniBoss || currentLevel % 4 === 0) {
       rewardPack.glitch_wipe = (rewardPack.glitch_wipe || 0) + 1;
     }
-    if (isBossSector || currentLevel % 8 === 0) {
+    if (isBossSector || isMiniBoss || currentLevel % 8 === 0) {
       rewardPack.overload_core = (rewardPack.overload_core || 0) + 1;
     }
 
@@ -468,7 +575,7 @@ export default function App() {
     setLastLevelRewards(rewardPack);
 
     // Apply booster rewards to inventory
-    setBoosters((prev) => ({
+    if(!(accountProfile.current&&!localCampaign.current))setBoosters((prev) => ({
       emp_bomb: prev.emp_bomb + (rewardPack.emp_bomb || 0),
       line_laser: prev.line_laser + (rewardPack.line_laser || 0),
       overload_core: prev.overload_core + (rewardPack.overload_core || 0),
@@ -491,6 +598,7 @@ export default function App() {
   }, [currentLevel]);
 
   const handleDistrictLose = useCallback(() => {
+    if(modeRef.current==='tutorial')trainingRecorder.current(false);
     gameAudio.playDefeatMotif();
     if(modeRef.current==='campaign')clearSaveGame();
     if(modeRef.current==='daily')setDailyBest(previous=>{const best=Math.max(previous,gameStateRef.current.score);writeStorage('cyber_casino_daily_v1',{day:dailyRun.current.day,seed:dailyRun.current.seed,score:best});return best;});
@@ -500,24 +608,31 @@ export default function App() {
 
   const advanceLevel = useCallback(() => {
     if(mode==='campaign'&&bonusRef.current){setBonusOpen(true);return;}
-    if(mode==='daily'||(mode==='tutorial'&&tutorial===3)) {
-      if(mode==='tutorial')setCareer(c=>({...c,achievements:[...new Set([...c.achievements,'Hacker Academy'])]}));
-      setGameState(s=>({...s,status:'START'}));setHubOpen(true);return;
+    if(mode==='daily'||(mode==='tutorial'&&tutorial===LESSONS.length)) {
+      if(mode==='tutorial'&&academyPerformance.completedLessons===LESSONS.length)setCareer(c=>({...c,achievements:[...new Set([...c.achievements,'Hacker Academy'])]}));
+      setGameState(s=>({...s,status:'START'}));if(mode==='tutorial')setAcademyOpen(true);else setHubOpen(true);return;
     }
     if(mode==='tutorial'){initGame(1,null,0,0,22,{mode:'tutorial',tutorial:tutorial+1,seed:100+tutorial+1});return;}
     const nextLvl = currentLevel + 1;
     initGame(nextLvl, null, undefined, 0, undefined);
-  }, [currentLevel, initGame, mode, tutorial]);
+  }, [currentLevel, initGame, mode, tutorial,academyPerformance.completedLessons]);
 
-  const spinBonus=()=>{
+  const spinBonus=async()=>{
     const round=bonusRef.current;if(!round)return false;
-    try{if(!localStorage.getItem(BONUS_KEY))localStorage.setItem(BONUS_KEY,JSON.stringify(round));const paid=claimBonus(localStorage,round,careerBoosters);bonusRef.current=paid;setBonus(paid);setCareerBoosters(paid.inventoryAfter!);return true;}
+    if(online.user&&onlineBonusId.current===round.id){
+      const identity=onlineIdentity.current;
+      try{const result=await onlineApi.claimBonus(round.id);if(onlineIdentity.current!==identity||result.user.id!==identity)return false;const paid={...round,claimed:true,applied:true,inventoryAfter:result.user.inventory};bonusRef.current=paid;setBonus(paid);setCareerBoosters(result.user.inventory);online.setUser(result.user);online.setPendingBonus(null);return true;}
+      catch{showNotification('Cannot reach the account server. Your free spin is kept.');return false;}
+    }
+    if(online.user&&!localCampaign.current){showNotification('Reconnect to claim your saved account bonus.');return false;}
+    try{if(!localStorage.getItem(BONUS_KEY))localStorage.setItem(BONUS_KEY,JSON.stringify(round));const paid=claimBonus(localStorage,round,boosters);bonusRef.current=paid;setBonus(paid);setBoosters(paid.inventoryAfter!);return true;}
     catch{showNotification('Your spin is saved. Reload to recover it if browser storage is full.');return false;}
   };
   const continueBonus=()=>{
     let round=bonusRef.current;if(!round?.claimed)return false;
-    try{if(!round.applied){round=recoverBonus(localStorage);if(!round?.applied)return false;setCareerBoosters(round.inventoryAfter!);}localStorage.removeItem(BONUS_KEY);}catch{showNotification('Cannot save bonus completion. Free browser storage, then try again.');return false;}
+    try{if(!round.applied){round=recoverBonus(localStorage);if(!round?.applied)return false;setBoosters(round.inventoryAfter!);}if(onlineBonusId.current!==round.id)localStorage.removeItem(BONUS_KEY);}catch{showNotification('Cannot save bonus completion. Free browser storage, then try again.');return false;}
     bonusRef.current=null;setBonus(null);setBonusOpen(false);
+    onlineBonusId.current=undefined;
     const queued=deferredRun.current;deferredRun.current=undefined;
     if(queued)initGame(...queued);else initGame(round.level+1,null,savedGame?.score??gameStateRef.current.score,0);
     return true;
@@ -526,7 +641,7 @@ export default function App() {
   const [pageHidden,setPageHidden]=useState(()=>document.hidden);
   useEffect(()=>{gameAudio.setTheme(gameState.status==='START'?(savedGame?.level||currentLevel):currentLevel+(mode==='campaign'&&gameState.status==='LEVEL_COMPLETE'?1:0));},[currentLevel,mode,gameState.status,savedGame?.level]);
   useEffect(()=>{const changed=()=>setPageHidden(document.hidden);document.addEventListener('visibilitychange',changed);return()=>document.removeEventListener('visibilitychange',changed);},[]);
-  const isPaused = gameState.status === 'PLAYING' && (pageHidden || isGameMenuOpen || isSettingsOpen || isHowToPlayOpen || hubOpen || bonusOpen);
+  const isPaused = gameState.status === 'PLAYING' && (pageHidden || isGameMenuOpen || isSettingsOpen || isHowToPlayOpen || hubOpen || academyOpen || bonusOpen || online.open);
   usePlaygroundGameLifecycle({...gameState, status: isPaused ? 'PAUSED' : gameState.status}, sdk);
   useEffect(() => () => clearTimeout(notificationTimeoutRef.current), []);
 
@@ -564,6 +679,8 @@ export default function App() {
   return (
     <div
       data-reduced-motion={preferences.reducedMotion}
+      data-resolution={preferences.resolution||'1080p'}
+      style={{width:display.width,height:display.height,transform:`scale(${display.scale})`,transformOrigin:'top left','--logical-height':`${display.height}px`} as React.CSSProperties}
       onContextMenu={(e) => e.preventDefault()}
       className="game-shell fixed inset-0 overflow-hidden touch-none flex flex-col bg-zinc-950 text-white font-sans select-none">
       <BackgroundMusic
@@ -705,10 +822,15 @@ export default function App() {
 
       {/* 3D WebGL Canvas Container */}
       <div className="game-stage flex-1 w-full min-h-0 relative flex items-center justify-center bg-slate-950 overflow-hidden">
+        {mode==='multiplayer'&&online.room&&<div className="race-live-status" aria-live="polite"><span>RACE {online.room.code} · {online.room.players.filter(p=>p.complete).length}/{online.room.players.length} finished</span><button className="cyber-button" onClick={()=>online.show('race')}>{online.room.status==='results'?'MATCH RESULTS':'RACE LOBBY'}</button></div>}
+        {mode==='campaign'&&online.user&&(initialTiles||initialSnapshot)&&<span className="local-run-note">Resumed local heist · not ranked. New heists record account stats.</span>}
         {gameState.status!=='START'&&<React.Suspense fallback={<p className="text-cyan-300">Loading matrix…</p>}><Game
           preferences={preferences}
+          onAction={mode==='multiplayer'||online.user&&mode==='campaign'&&!initialTiles&&!initialSnapshot?sendOnlineAction:undefined}
           seed={seed}
           tutorial={tutorial}
+          trainingControl={trainingControl}
+          onTrainingMistake={()=>{if(trainingRun.current&&!trainingRun.current.finished)trainingRun.current.mistakes=Math.min(10000,trainingRun.current.mistakes+1);}}
           themeLevel={currentLevel+(mode==='campaign'&&gameState.status==='LEVEL_COMPLETE'?1:0)}
           pieceStyle={mode==='tutorial'?'classic':career.pieceStyle}
           initialSnapshot={initialSnapshot}
@@ -966,9 +1088,10 @@ export default function App() {
               </p>
             </div>
 
-            <div className="w-full flex flex-col gap-2.5">
+          <div className="w-full flex flex-col gap-2.5">
+              <button className="cyber-button" onClick={()=>online.show(online.user?'race':'account')}>{online.user?`${online.user.displayName} · PROFILE & MULTIPLAYER`:'ACCOUNT · MULTIPLAYER · LEADERBOARD'}</button>
               <button className="cyber-button primary" onClick={()=>setHubOpen(true)}>CAMPAIGN MAP & DAILY HEIST</button>
-              <button className="cyber-button" onClick={()=>initGame(1,null,0,0,22,{mode:'tutorial',tutorial:1,seed:101})}>HACKER TRAINING</button>
+              <button className="cyber-button" onClick={()=>setAcademyOpen(true)}>HACKER TRAINING</button>
               {savedGame && (
                 <button
                   ref={continueButtonRef}
@@ -1027,7 +1150,7 @@ export default function App() {
 
       {hubOpen&&<MenuOverlay tone="neutral" zIndex={80} wide><HeistHub career={career} dailyBest={dailyBest} onClose={()=>setHubOpen(false)}
         onLevel={level=>initGame(level,null,0,0)} onDaily={()=>{const d=dailyChallenge();initGame(d.level,null,0,0,undefined,{mode:'daily',seed:d.seed});}}
-        onTutorial={()=>initGame(1,null,0,0,22,{mode:'tutorial',tutorial:1,seed:101})}
+        onTutorial={()=>{setHubOpen(false);setAcademyOpen(true);}}
         onCosmetic={cosmetic=>setCareer(c=>({...c,cosmetic}))}
         onPieceStyle={pieceStyle=>setCareer(c=>canEquipPieces(c,pieceStyle)?{...c,pieceStyle}:c)}/></MenuOverlay>}
       {/* SETTINGS MODAL */}
@@ -1047,6 +1170,7 @@ export default function App() {
               PERSPECTIVE, AUDIO AND INTERFACE OPTIONS
             </p>
             <PreferencesPanel value={preferences} onChange={value=>{gameAudio.playCrispClick();setPreferences(value);}}/>
+            <button className="cyber-button w-full mb-4" onClick={()=>{setIsSettingsOpen(false);online.show(online.user?'race':'account');}}>ACCOUNT & HOST MULTIPLAYER</button>
 
             <div className="w-full bg-slate-900/90 border border-cyan-500/30 rounded-xl p-3.5 mb-3 space-y-2">
               <div className="flex items-center gap-2 text-cyan-300 font-mono font-bold text-xs">
@@ -1389,7 +1513,7 @@ export default function App() {
       )}
 
       {/* LEVEL COMPLETE OVERLAY WITH LEVEL REWARDS & BOOSTERS */}
-      {gameState.status === 'LEVEL_COMPLETE' && !bonusOpen && (
+      {gameState.status === 'LEVEL_COMPLETE' && mode!=='multiplayer' && !bonusOpen && (
         <MenuOverlay tone="victory" zIndex={50}>
           <div className="completion-card w-full max-w-sm bg-slate-950 border-2 border-emerald-500/80 rounded-2xl p-6 shadow-2xl shadow-emerald-950/50 flex flex-col items-center" role="dialog" aria-modal="true" aria-label="Level completion and rewards" tabIndex={-1} ref={e=>{if(e&&!e.contains(document.activeElement))e.focus({preventScroll:true});}}>
             <div className="w-14 h-14 rounded-2xl bg-emerald-500/20 border border-emerald-400 flex items-center justify-center text-emerald-400 mb-3 animate-bounce">
@@ -1472,16 +1596,17 @@ export default function App() {
               }}
               className="w-full min-h-[48px] bg-emerald-500 hover:bg-emerald-400 text-slate-950 py-3 rounded-xl font-mono font-bold text-sm tracking-wider flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/30 active:scale-95">
               <Play size={18} />
-              {mode==='daily'?'RETURN TO DAILY HEISTS':mode==='tutorial'?(tutorial===3?'TRAINING COMPLETE':`NEXT LESSON ${tutorial+1}`):bonus?'PLAY BONUS SLOT ROUND':`BREACH LEVEL ${currentLevel + 1}`}
+              {mode==='daily'?'RETURN TO DAILY HEISTS':mode==='tutorial'?(tutorial===LESSONS.length?'TRAINING COMPLETE':`NEXT LESSON ${tutorial+1}`):bonus?'PLAY BONUS SLOT ROUND':`BREACH LEVEL ${currentLevel + 1}`}
             </button>
           </div>
         </MenuOverlay>
       )}
 
+      {academyOpen&&<MenuOverlay wide zIndex={80}><TrainingAcademy performance={academyPerformance} onClose={()=>setAcademyOpen(false)} onStart={n=>initGame(1,null,0,0,22,{mode:'tutorial',tutorial:n,seed:100+n})}/></MenuOverlay>}
       {bonusOpen&&bonus&&<BonusRound key={bonus.id} round={bonus} reducedMotion={preferences.reducedMotion} onSpin={spinBonus} onContinue={continueBonus}/>}
 
       {/* CONNECTION LOST / GAME OVER */}
-      {gameState.status === 'GAME_OVER' && (
+      {gameState.status === 'GAME_OVER' && mode!=='multiplayer' && (
         <MenuOverlay tone="danger" zIndex={50}>
           <div className="w-full max-w-sm bg-slate-950 border-2 border-red-500/80 rounded-2xl p-6 shadow-2xl shadow-red-950/50 flex flex-col items-center">
             <div className="w-14 h-14 rounded-2xl bg-red-500/20 border border-red-400 flex items-center justify-center text-red-400 mb-3 animate-pulse">
@@ -1529,6 +1654,7 @@ export default function App() {
           </div>
         </MenuOverlay>
       )}
+      <OnlinePanel online={online} currentLevel={currentLevel}/>
     </div>
   );
 }

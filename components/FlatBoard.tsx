@@ -9,7 +9,7 @@ export function FlatBoard({tiles,rows,cols,selected,hints,onTile,particles,rings
 }) {
   const host=useRef<HTMLDivElement>(null),[side,setSide]=useState(1);
   useEffect(()=>{
-    const measure=()=>{const r=host.current?.getBoundingClientRect();if(r)setSide(Math.max(1,Math.min(r.width,r.height)*.94));};
+    const measure=()=>{const r=host.current;if(r)setSide(Math.max(1,Math.min(r.clientWidth,r.clientHeight)*.94));};
     measure();const observer=typeof ResizeObserver==='undefined'?null:new ResizeObserver(measure);
     if(host.current)observer?.observe(host.current);window.addEventListener('resize',measure);
     return()=>{observer?.disconnect();window.removeEventListener('resize',measure);};

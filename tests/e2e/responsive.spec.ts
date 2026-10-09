@@ -16,7 +16,12 @@ async function start(page:Page,flat=false) {
 }
 async function layout(page:Page) {
   // Mobile viewport metadata, media queries and ResizeObserver settle on the next frames after rotation.
-  await expect.poll(()=>page.evaluate(()=>Array.from(document.querySelectorAll('.booster-tray button,.hud-actions button')).every(e=>{const r=e.getBoundingClientRect();return r.x>=-1&&r.right<=innerWidth+1;}))).toBe(true);
+  await expect.poll(()=>page.evaluate(()=>{
+    const dock=document.querySelector('.booster-tray')!.getBoundingClientRect();
+    const hud=document.querySelector('.game-hud')!.getBoundingClientRect();
+    const stage=document.querySelector('.matrix-stage')!.getBoundingClientRect();
+    return hud.right<=innerWidth+1&&dock.bottom<=innerHeight+1&&stage.width>0&&stage.height>90&&Array.from(document.querySelectorAll('.booster-tray button,.hud-actions button')).every(e=>{const r=e.getBoundingClientRect();return r.x>=-1&&r.right<=innerWidth+1;});
+  })).toBe(true);
   const sizes=await page.evaluate(()=>{
     const rect=(selector:string)=>{const r=document.querySelector(selector)!.getBoundingClientRect();return {x:r.x,y:r.y,right:r.right,bottom:r.bottom,width:r.width,height:r.height};};
     return {width:innerWidth,height:innerHeight,hud:rect('.game-hud'),stage:rect('.matrix-stage'),dock:rect('.booster-tray'),buttons:Array.from(document.querySelectorAll('.booster-tray button,.hud-actions button')).map(e=>{const r=e.getBoundingClientRect();return {x:r.x,y:r.y,right:r.right,bottom:r.bottom,height:r.height,width:r.width};})};

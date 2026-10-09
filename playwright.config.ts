@@ -3,6 +3,7 @@ import {existsSync} from 'node:fs';
 
 export default defineConfig({
   testDir: './tests/e2e',
+  testIgnore: 'online.spec.ts',
   timeout: 60000,
   expect: {timeout: 15000},
   workers: 1,

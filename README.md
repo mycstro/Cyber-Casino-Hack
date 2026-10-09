@@ -1,6 +1,6 @@
 # Cyber Casino Hack
 
-A single-player React/Three.js match-three game. The source export is now a standalone Vite project.
+A React/Three.js match-three game with solo campaigns, guided training, accounts and hosted multiplayer races. Version 2 adds a Node/SQLite service while keeping guest solo play available offline.
 
 ## Run locally
 
@@ -8,10 +8,11 @@ Use Node.js 22.12 or later.
 
 ```sh
 npm ci
-npm run dev
+npm run build
+npm start
 ```
 
-Open the localhost URL printed by Vite. Standalone mode runs without loading the external Playground SDK. An embedded Playground host can still provide its SDK.
+Open `http://localhost:3001`. The server serves the game and account API together. For Wi-Fi, public hosting, provider configuration and data storage, see [server setup](README-server.md). For frontend-only development, `npm run dev` starts Vite; account features need the separate server with an exactly matching `PUBLIC_ORIGIN`. Standalone mode runs without loading the external Playground SDK.
 
 ## Build and verify
 
@@ -20,9 +21,10 @@ npm run build
 npm test
 npx playwright install chromium firefox webkit
 npm run test:e2e
+npm run test:online
 ```
 
-`npm run check` runs the production build, unit/application tests, and browser tests in sequence. `npm run preview` serves the built `dist/` directory locally. Browser tests require a completed build and run against that production output.
+`npm run check` runs the production build, unit/application tests, game browser tests and separate account/race browser tests in sequence. `npm run preview` serves the guest game only. Browser tests use production output and isolated test data; run the two browser suites sequentially to avoid software-GPU contention.
 
 Dependencies are pinned in `package.json`; `package-lock.json` records their exact transitive versions and integrity hashes. Use `npm ci` for reproducible installs.
 
@@ -66,9 +68,15 @@ Select a special token, then an adjacent special to combine them. Tap the same s
 
 Purge Hazard now removes **all board hazards**, including both shield layers, boss locks and vaults. A purged vault credits its full objective. Data packets remain intact, and Purge spends no move. Attempting Purge on a hazard-free board preserves the booster.
 
-**Hacker Training** provides three playable lessons: a basic swap, clearing two lines to create a Cross Laser, and breaking an adjacent ICE shield. Hints appear after seven idle seconds, or when the Hint button is pressed. Hints never spend moves or boosters.
+**Hacker Training** opens the course and performance view, with 22 lessons covering HUD, device controls, three/four/five matches, Cross creation and use, three-line move bonuses, shields, free EMP/Overload/Purge/injection exercises, rewards, slots, XP, chapters, collections, accounts, multiplayer, mission objectives, bosses, hints/saving and special combinations. Ten lessons use real board actions; the remaining explanatory lessons require an explicit acknowledgement. Replay any lesson or choose **Start Guided Training** to continue from the first unfinished lesson. View completion, attempts and best/last moves inside training or the signed-in profile. Signed-in training is saved with retry-safe receipts; these self-reported learning metrics do not affect competitive rankings. Device input preferences and keyboard enablement can be saved in the profile. Hints appear after seven idle seconds, or when Hint is pressed, without spending moves or boosters.
 
 Training outlines the two practice cells, gives a numbered selection prompt, supports taps, dragging and keyboard swaps, and explains the result after each lesson. Wrong practice swaps spend no moves. The opening lessons use the original pieces so their color names agree with the instructions.
+
+Version 2 uses an independent logical game resolution, defaulting to 1920 × 1080. On a 4K display the standard interface scales up rather than leaving menus tiny. Settings offer 720p, 1080p, 1440p, 2160p and native display; smaller screens retain responsive layouts. Canvas measurement happens before interface scaling to prevent displaced or oversized backgrounds. Signs, holograms and the sentinel sit ahead of the rings and away from playable cells.
+
+Accounts support password login, profile editing, password changes, deletion and public leaderboards. Facebook and professional Instagram OAuth integrations require operator-supplied Meta credentials and provider approval; disabled buttons state this requirement. Hosted races share a seeded level, validate actions on the server, declare the first completion the winner and offer next level together, next level solo or main menu. Inventory boosters are disabled in races; match-earned Cross pieces and move bonuses remain available. Active games live in server memory and end when the server restarts; accounts, inventories, statistics, training and reward receipts persist in SQLite.
+
+Fresh signed-in campaign runs use the verified account inventory and rewards. Resumed browser-local saves use guest inventory and remain unranked; they do not alter account inventory or leaderboard statistics. Guest career stars, XP, collections, saves and daily records remain device-local. Runtime databases, account information, credentials and user reference images are excluded from Git.
 
 Campaign stars reward completion, at least five moves remaining, and using no boosters. Replays retain your best stars and score. Every completed campaign run, including a replay, grants booster loot once; duplicate completion callbacks and checkpoint reloads cannot pay that run again. The completion card shows the awarded quantities and scrolls on small screens. Achievements and mastery stars unlock four cosmetic palettes, including matching hacker clothing and aura colors in the full city scene. Music choices remain in Settings; cosmetics provide no rule or scoring advantages.
 
